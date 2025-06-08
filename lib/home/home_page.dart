@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:provider/provider.dart';
-import 'package:http/http.dart' as http;
+import 'package:provider/provider.dart'; // Keep: import 'package:provider/provider.dart';
+import 'package:http/http.dart' as http; // Needed for logout in MorePage
 
-import '../theme_manager.dart';
-import '../auth/login_page.dart';
-import '../pages/start_page.dart';
-import '../pages/rooms_page.dart';
-import '../pages/warnings_page.dart';
-import '../pages/more_page.dart';
-import '../pages/evaluation_page.dart';
+import '../theme_manager.dart'; // Keep: import '../theme_manager.dart'; // Import ThemeNotifier
+import '../auth/login_page.dart'; // Import LoginPage for navigation
+import '../pages/start_page.dart'; // Import StartPage
+import '../pages/rooms_page.dart'; // Import RoomsPage - this path is correct now
+import '../pages/warnings_page.dart'; // Import WarningsPage
+import '../pages/more_page.dart'; // Import MorePage
+import '../pages/evaluation_page.dart'; // NEW: Import EvaluationPage
 
 /// HomePage is the main screen after successful login,
 /// featuring a Bottom Navigation Bar and a Floating Action Button.
@@ -44,7 +44,7 @@ class _HomePageState extends State<HomePage> {
       ), // 'Start' page
       RoomsPage(serverAddress: widget.serverAddress), // 'Räume' page - Corrected constructor
       EvaluationPage(serverAddress: widget.serverAddress), // NEW: 'Bewerten' page (index 2)
-      WarningsPage(serverAddress: widget.serverAddress), // 'Warnungen' page - Assuming it doesn't need serverAddress yet
+      WarningsPage(serverAddress: widget.serverAddress), // 'Warnungen' page - Pass serverAddress
       MorePage(serverAddress: widget.serverAddress), // 'Mehr' page
     ];
   }
@@ -72,6 +72,8 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // No _onItemTapped function needed anymore, _changeTab handles it all
+
   @override
   Widget build(BuildContext context) {
     // Keep: Access ThemeNotifier
@@ -80,6 +82,9 @@ class _HomePageState extends State<HomePage> {
     final double appBarContentHeight = 60.0; 
 
     return Scaffold(
+      // Set resizeToAvoidBottomInset to false to prevent FAB from moving up with keyboard
+      resizeToAvoidBottomInset: false, // Prevents keyboard from pushing content up
+      
       // No AppBar here, as per user's request for HomePage
       body: _pages[_selectedIndex], // Display the selected page content
       
@@ -88,7 +93,14 @@ class _HomePageState extends State<HomePage> {
         onPressed: () {
           // Action for the central 'Bewerten' button
           _changeTab(2); // Select the 'Bewerten' tab when FAB is pressed (index 2)
-          // Removed SnackBar message as requested
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Navigiere zur Bewertungsseite!'),
+              behavior: SnackBarBehavior.floating, // Makes the SnackBar floating
+              margin: EdgeInsets.fromLTRB(16.0, MediaQuery.of(context).padding.top + 10.0, 16.0, 0.0), // Positions it at the top
+              duration: const Duration(seconds: 2), // Short display duration
+            ),
+          );
         },
         backgroundColor: Colors.orange[700], // Orange color like in your web design
         foregroundColor: Colors.white,

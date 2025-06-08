@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart'; // For session cookie and user role
+import 'package:intl/intl.dart'; // For date formatting - ADDED THIS IMPORT
 
 /// Represents a Stand that can be evaluated.
 class Stand {
@@ -197,7 +198,14 @@ class _EvaluationPageState extends State<EvaluationPage> {
             (data['scores'] as Map<String, dynamic>).forEach((key, value) {
               _existingScores[int.parse(key)] = value;
             });
-            _lastEvaluationTimestamp = data['timestamp'];
+            
+            // Parse and format the timestamp
+            if (data['timestamp'] != null) {
+              final DateTime parsedTimestamp = DateTime.parse(data['timestamp']);
+              _lastEvaluationTimestamp = DateFormat('dd.MM.yyyy - HH:mm').format(parsedTimestamp.toLocal());
+            } else {
+              _lastEvaluationTimestamp = null;
+            }
 
             // Populate controllers with existing scores
             _criteria.forEach((criterion) {

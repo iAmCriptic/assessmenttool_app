@@ -60,6 +60,7 @@ class _MyEvaluationsPageState extends State<MyEvaluationsPage> {
         } else {
           setState(() {
             _isLoading = false; // Stop loading if user has no access
+            _errorMessage = 'Sie haben keine Berechtigung, auf diese Seite zuzugreifen.'; // Set error message for unauthorized access
           });
         }
       });
@@ -145,6 +146,8 @@ class _MyEvaluationsPageState extends State<MyEvaluationsPage> {
                 .toList();
             _evaluatedStandsCount = _myEvaluations.length; // Count of evaluated stands
           });
+        } else {
+           _errorMessage = data['message'] ?? 'Unbekannter Fehler beim Laden deiner Bewertungen.';
         }
       } else {
         print('Error fetching my evaluations: ${evaluationsResponse.statusCode} - ${evaluationsResponse.body}');
@@ -344,6 +347,12 @@ class _MyEvaluationsPageState extends State<MyEvaluationsPage> {
                   itemCount: _myEvaluations.length,
                   itemBuilder: (context, index) {
                     final evaluation = _myEvaluations[index];
+                    
+                    // Parse the ISO 8601 string to DateTime object
+                    final DateTime parsedTimestamp = DateTime.parse(evaluation.timestamp);
+                    // Format the DateTime object to DD.MM.YYYY - HH:mm (corrected format)
+                    final String formattedTimestamp = DateFormat('dd.MM.yyyy - HH:mm').format(parsedTimestamp.toLocal());
+
                     return Card(
                       margin: const EdgeInsets.only(bottom: 16.0),
                       elevation: 4,
@@ -369,7 +378,7 @@ class _MyEvaluationsPageState extends State<MyEvaluationsPage> {
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              'Bewertet am: ${evaluation.timestamp}',
+                              'Bewertet am: $formattedTimestamp', // Use the formatted timestamp
                               style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[600]),
                             ),
                           ],

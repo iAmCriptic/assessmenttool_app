@@ -474,25 +474,17 @@ class _WarningsPageState extends State<WarningsPage> {
               // Custom Title and Back Button
               Padding(
                 padding: const EdgeInsets.only(top: 16.0, bottom: 16.0),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: Icon(Icons.arrow_back, color: Theme.of(context).iconTheme.color),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                    Expanded(
-                      child: Text(
-                        'Verwarnungen',
-                        style: GoogleFonts.inter(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).textTheme.headlineLarge?.color,
-                        ),
-                        textAlign: TextAlign.left,
+                child: 
+                    // Removed IconButton and Expanded for the back button
+                    Text( 
+                      'Verwarnungen',
+                      style: GoogleFonts.inter(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).textTheme.headlineLarge?.color,
                       ),
+                      textAlign: TextAlign.left, // Keep original alignment for consistency if not centered by user
                     ),
-                  ],
-                ),
               ),
               const SizedBox(height: 20),
 
@@ -614,6 +606,29 @@ class _WarningsPageState extends State<WarningsPage> {
                               )
                             else
                               ...groupedWarning.warnings.map((warning) {
+                                // Format the warning timestamp
+                                String formattedTimestamp = 'N/A';
+                                try {
+                                  final DateTime parsedTimestamp = DateTime.parse(warning.timestamp);
+                                  formattedTimestamp = DateFormat('dd.MM.yyyy - HH:mm').format(parsedTimestamp.toLocal()); // Corrected format
+                                } catch (e) {
+                                  print('Error parsing warning timestamp: $e');
+                                  formattedTimestamp = 'Ungültiges Datum';
+                                }
+
+                                // Format the invalidation timestamp
+                                String formattedInvalidationTimestamp = 'N/A';
+                                if (warning.invalidationTimestamp != null) {
+                                  try {
+                                    final DateTime parsedInvalidationTimestamp = DateTime.parse(warning.invalidationTimestamp!);
+                                    formattedInvalidationTimestamp = DateFormat('dd.MM.yyyy - HH:mm').format(parsedInvalidationTimestamp.toLocal()); // Corrected format
+                                  } catch (e) {
+                                    print('Error parsing invalidation timestamp: $e');
+                                    formattedInvalidationTimestamp = 'Ungültiges Datum';
+                                  }
+                                }
+
+
                                 return Padding(
                                   padding: const EdgeInsets.only(left: 8.0, bottom: 8.0),
                                   child: Column(
@@ -624,7 +639,7 @@ class _WarningsPageState extends State<WarningsPage> {
                                         children: [
                                           Expanded(
                                             child: Text(
-                                              'Verwarner: ${warning.warnerName} am ${warning.timestamp}',
+                                              'Verwarner: ${warning.warnerName} am $formattedTimestamp', // Use formattedTimestamp
                                               style: GoogleFonts.inter(
                                                 fontSize: 14,
                                                 fontWeight: FontWeight.w600,
@@ -687,7 +702,7 @@ class _WarningsPageState extends State<WarningsPage> {
                                               style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[500]),
                                             ),
                                             Text(
-                                              'Ungültig gemacht am: ${warning.invalidationTimestamp ?? 'N/A'}',
+                                              'Ungültig gemacht am: $formattedInvalidationTimestamp', // Use formattedInvalidationTimestamp
                                               style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[500]),
                                             ),
                                           ],

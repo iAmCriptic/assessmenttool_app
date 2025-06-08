@@ -357,7 +357,7 @@ class _MorePageState extends State<MorePage> {
                 child: Column(
                   children: [
                     Text(
-                      'Erstellt von Enrico R. Mahle',
+                      'Erstellt von Enrico R. Matzke',
                       style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[600]),
                       textAlign: TextAlign.center,
                     ),

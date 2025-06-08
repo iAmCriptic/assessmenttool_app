@@ -371,6 +371,19 @@ class _RoomsPageState extends State<RoomsPage> { // Changed state class name
                   itemCount: _roomInspections.length,
                   itemBuilder: (context, index) {
                     final room = _roomInspections[index];
+                    
+                    // Format the timestamp if available
+                    String formattedInspectionTimestamp = 'N/A';
+                    if (room.inspectionTimestamp != null) {
+                      try {
+                        final DateTime parsedTimestamp = DateTime.parse(room.inspectionTimestamp!);
+                        formattedInspectionTimestamp = DateFormat('dd.MM.yyyy - HH:mm').format(parsedTimestamp.toLocal());
+                      } catch (e) {
+                        print('Error parsing inspection timestamp: $e');
+                        formattedInspectionTimestamp = 'Ungültiges Datum';
+                      }
+                    }
+
                     return Card(
                       margin: const EdgeInsets.only(bottom: 16.0),
                       elevation: 4,
@@ -416,7 +429,7 @@ class _RoomsPageState extends State<RoomsPage> { // Changed state class name
                             if (room.inspectionTimestamp != null) ...[
                               const SizedBox(height: 8),
                               Text(
-                                'Zuletzt inspiziert: ${room.inspectionTimestamp} von ${room.lastInspectedBy}',
+                                'Zuletzt inspiziert: $formattedInspectionTimestamp von ${room.lastInspectedBy}',
                                 style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[500]),
                               ),
                             ],

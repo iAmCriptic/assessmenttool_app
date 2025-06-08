@@ -6,7 +6,7 @@ import 'package:http/http.dart' as http; // Needed for logout in MorePage
 import '../theme_manager.dart'; // Import ThemeNotifier
 import '../auth/login_page.dart'; // Import LoginPage for navigation
 import '../pages/start_page.dart'; // Import StartPage
-import '../pages/rooms_page.dart'; // Import RoomsPage
+import '../pages/rooms_page.dart'; // Import RoomsPage - this path is correct now
 import '../pages/warnings_page.dart'; // Import WarningsPage
 import '../pages/more_page.dart'; // Import MorePage
 
@@ -26,19 +26,29 @@ class _HomePageState extends State<HomePage> {
   // List of widgets (pages) for each tab
   late final List<Widget> _pages;
 
+  // Callback to change the selected tab from children
+  void _changeTab(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+  }
+
   @override
   void initState() {
     super.initState();
     _pages = <Widget>[
-      StartPage(serverAddress: widget.serverAddress), // 'Start' page
-      const RoomsPage(), // 'Räume' page
+      StartPage(
+        serverAddress: widget.serverAddress,
+        onTabChangeRequested: _changeTab, // Pass the callback here
+      ), // 'Start' page
+      RoomsPage(serverAddress: widget.serverAddress), // 'Räume' page - Corrected constructor
       const Center( // Placeholder for 'Bewerten' page (index 2)
         child: Text(
           'Bewertungsseite',
           style: TextStyle(fontSize: 24),
         ),
       ),
-      const WarningsPage(), // 'Warnungen' page
+      const WarningsPage(), // 'Warnungen' page - Assuming it doesn't need serverAddress yet
       MorePage(serverAddress: widget.serverAddress), // 'Mehr' page
     ];
   }
@@ -54,7 +64,7 @@ class _HomePageState extends State<HomePage> {
       child: Material( // Use Material for ink splash effect
         color: Colors.transparent, // Make it transparent so the BottomAppBar color shines through
         child: InkWell( // For tap feedback
-          onTap: () => _onItemTapped(index),
+          onTap: () => _changeTab(index), // Use _changeTab directly for bottom nav
           child: SizedBox( // Explicitly define size for the item to prevent overflow
             height: kBottomNavigationBarHeight, // Use standard height
             child: Center( // Center the icon within the SizedBox
@@ -66,13 +76,7 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  /// Function to handle tab selection.
-  /// When a BottomNavigationBar item is tapped, it updates the selected index.
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-  }
+  // No _onItemTapped function needed anymore, _changeTab handles it all
 
   @override
   Widget build(BuildContext context) {
@@ -89,14 +93,12 @@ class _HomePageState extends State<HomePage> {
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           // Action for the central 'Bewerten' button
-          setState(() {
-            _selectedIndex = 2; // Select the 'Bewerten' tab when FAB is pressed
-          });
+          _changeTab(2); // Select the 'Bewerten' tab when FAB is pressed
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: const Text('Navigiere zur Bewertungsseite!'),
               behavior: SnackBarBehavior.floating, // Makes the SnackBar floating
-              margin: EdgeInsets.only(top: MediaQuery.of(context).padding.top + 10.0, left: 16.0, right: 16.0), // Positions it at the top
+              margin: EdgeInsets.fromLTRB(16.0, MediaQuery.of(context).padding.top + 10.0, 16.0, 0.0), // Positions it at the top
               duration: const Duration(seconds: 2), // Short display duration
             ),
           );

@@ -1,19 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-/// Die Seite zur Verwaltung der Räume.
-/// Akzeptiert die Serveradresse für API-Aufrufe.
-class RoomsPage extends StatelessWidget {
-  final String serverAddress; // Stellt sicher, dass die Serveradresse akzeptiert wird
-  const RoomsPage({super.key, required this.serverAddress}); // Öffentlicher Konstruktor
+class RankingPage extends StatelessWidget {
+  final String serverAddress;
+  const RankingPage({super.key, required this.serverAddress});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          'Räume',
-          style: GoogleFonts.inter(), // Anwenden der Inter-Schriftart
+          'Rangliste',
+          style: GoogleFonts.inter(),
         ),
       ),
       body: Center(
@@ -23,17 +21,16 @@ class RoomsPage extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
-                'Dies ist die Seite "Räume".',
-                style: GoogleFonts.inter(fontSize: 20), // Anwenden der Inter-Schriftart
+                'Dies ist die Seite "Rangliste".',
+                style: GoogleFonts.inter(fontSize: 20),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 10),
               Text(
                 'Verbunden mit Server: $serverAddress',
-                style: GoogleFonts.inter(fontSize: 16, color: Colors.grey[600]), // Anwenden der Inter-Schriftart
+                style: GoogleFonts.inter(fontSize: 16, color: Colors.grey[600]),
                 textAlign: TextAlign.center,
               ),
-              // Hier könnten zukünftig UI-Elemente zur Raumverwaltung hinzukommen
             ],
           ),
         ),

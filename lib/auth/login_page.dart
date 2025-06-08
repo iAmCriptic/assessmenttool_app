@@ -23,6 +23,8 @@ class LoginPage extends StatefulWidget {
     await prefs.remove('serverAddress');
     await prefs.remove('username');
     await prefs.remove('password');
+    await prefs.remove('userRole'); // Clear user role as well
+    await prefs.remove('sessionCookie'); // Clear session cookie as well
   }
 
   @override
@@ -42,15 +44,17 @@ class _LoginPageState extends State<LoginPage> {
     _loadSavedCredentials();
   }
 
-  /// Loads saved login credentials (server address, username, password) from SharedPreferences.
+  /// Loads saved login credentials (server address, username, password, user role, session cookie) from SharedPreferences.
   /// If credentials are found, it attempts an auto-login.
   Future<void> _loadSavedCredentials() async {
     final prefs = await SharedPreferences.getInstance();
     final String? savedServerAddress = prefs.getString('serverAddress');
     final String? savedUsername = prefs.getString('username');
     final String? savedPassword = prefs.getString('password');
+    final String? savedUserRole = prefs.getString('userRole'); // Load user role
+    final String? savedSessionCookie = prefs.getString('sessionCookie'); // Load session cookie
 
-    if (savedServerAddress != null && savedUsername != null && savedPassword != null) {
+    if (savedServerAddress != null && savedUsername != null && savedPassword != null && savedUserRole != null && savedSessionCookie != null) {
       _serverAddressController.text = savedServerAddress;
       _usernameController.text = savedUsername;
       _passwordController.text = savedPassword;
@@ -65,12 +69,18 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  /// Saves the provided credentials to SharedPreferences.
-  Future<void> _saveCredentials(String serverAddress, String username, String password) async {
+  /// Saves the provided credentials and session cookie to SharedPreferences.
+  Future<void> _saveCredentials(String serverAddress, String username, String password, String userRole, String? sessionCookie) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('serverAddress', serverAddress);
     await prefs.setString('username', username);
     await prefs.setString('password', password);
+    await prefs.setString('userRole', userRole); // Save user role
+    if (sessionCookie != null) {
+      await prefs.setString('sessionCookie', sessionCookie); // Save session cookie
+    } else {
+      await prefs.remove('sessionCookie'); // Remove if null
+    }
   }
 
   @override
@@ -97,10 +107,7 @@ class _LoginPageState extends State<LoginPage> {
     final String password = _passwordController.text.trim();
 
     if (serverAddress.isEmpty || username.isEmpty || password.isEmpty) {
-      if (isAutoLogin) {
-        // If auto-login fails due to missing credentials, don't show error
-        // Just let the user fill in the fields manually
-      } else {
+      if (!isAutoLogin) { // Only show error if not auto-login
         setState(() {
           _errorMessage = 'Bitte fülle alle Felder aus.';
         });
@@ -126,19 +133,32 @@ class _LoginPageState extends State<LoginPage> {
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseBody = json.decode(response.body);
+        
+        // Extract Set-Cookie header if present
+        String? sessionCookie;
+        if (response.headers.containsKey('set-cookie')) {
+          sessionCookie = response.headers['set-cookie'];
+          // For Flask, the cookie usually looks like 'session=ABCDEF; Path=/; HttpOnly'.
+          // We just need the 'session=ABCDEF' part.
+          sessionCookie = sessionCookie?.split(';').first;
+          print('DEBUG: Received Set-Cookie: $sessionCookie');
+        }
+
         if (responseBody['success'] == true) {
           // Login successful!
+          final String userRole = responseBody['user_role'] ?? 'Betrachter'; // Default role if not provided by backend
+
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(responseBody['message']),
-              behavior: SnackBarBehavior.floating,
+              behavior: SnackBarBehavior.floating, // Makes the SnackBar floating
               margin: EdgeInsets.only(top: MediaQuery.of(context).padding.top + 10.0, left: 16.0, right: 16.0), // Positions it at the top
-              duration: const Duration(seconds: 2),
+              duration: const Duration(seconds: 2), // Short display duration
             ),
           );
 
-          // Save credentials after successful login
-          await _saveCredentials(serverAddress, username, password);
+          // Save credentials and user role, and the session cookie
+          await _saveCredentials(serverAddress, username, password, userRole, sessionCookie);
 
           if (responseBody['redirect_to_setup'] == true) {
             // If Admin setup is required
@@ -160,7 +180,7 @@ class _LoginPageState extends State<LoginPage> {
           if (isAutoLogin) await LoginPage.clearSavedCredentials(); // Clear if auto-login failed
         }
       } else {
-        // HTTP error (z.g., 401 Unauthorized)
+        // HTTP error (e.g., 401 Unauthorized)
         final Map<String, dynamic> errorBody = json.decode(response.body);
         setState(() {
           _errorMessage = errorBody['message'] ?? 'Ein unerwarteter Fehler ist aufgetreten. Status: ${response.statusCode}';
@@ -209,15 +229,6 @@ class _LoginPageState extends State<LoginPage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: <Widget>[
-              // Optional: App Logo
-              // Add a logo here if you have one.
-              // Example: Image.asset('assets/logo.png', height: 150),
-              // Or from your Flask app, but note that this address also needs to be entered via the new field
-              // Image.network(
-              //   '${_serverAddressController.text.trim()}/static/img/logo_V2.png',
-              //   height: 150,
-              //   errorBuilder: (context, error, stackTrace) => Icon(Icons.business, size: 100), // Fallback icon
-              // ),
               const SizedBox(height: 30),
               TextField(
                 controller: _serverAddressController,

@@ -41,6 +41,12 @@ class _StartPageState extends State<StartPage> {
   bool _isLoading = true;
   String? _errorMessage;
 
+  // New state variables for dynamic gradient colors
+  Color _gradientColor1 = Colors.blue.shade50; // Default light mode start color
+  Color _gradientColor2 = Colors.blue.shade200; // Default light mode end color
+  Color _darkGradientColor1 = Colors.black; // Default dark mode start color
+  Color _darkGradientColor2 = Colors.blueGrey; // Default dark mode end color
+
   @override
   void initState() {
     super.initState();
@@ -74,6 +80,15 @@ class _StartPageState extends State<StartPage> {
       headers['Cookie'] = _sessionCookie!;
     }
     return headers;
+  }
+
+  /// Converts a hex color string (e.g., "#RRGGBB") to a Flutter Color object.
+  Color _hexToColor(String hexString) {
+    // Remove '#' if present
+    final String hex = hexString.replaceAll('#', '');
+    // Parse the hex string to an integer, then create a Color object
+    // Add 'ff' for full opacity if not already present
+    return Color(int.parse('ff$hex', radix: 16));
   }
 
   /// Extracts the base host from a given URL, removing protocol, port, and subdomains.
@@ -167,6 +182,12 @@ class _StartPageState extends State<StartPage> {
               _logoFullPath = null; // No logo path provided
             }
             print('DEBUG: Generated logo URL: $_logoFullPath'); // Debug output for the final URL
+
+            // Update gradient colors from backend settings
+            _gradientColor1 = _hexToColor(data['settings']['bg_gradient_color1'] ?? '#E3F2FD'); // Default to light blue
+            _gradientColor2 = _hexToColor(data['settings']['bg_gradient_color2'] ?? '#BBDEFB'); // Default to lighter blue
+            _darkGradientColor1 = _hexToColor(data['settings']['dark_bg_gradient_color1'] ?? '#000000'); // Default to black
+            _darkGradientColor2 = _hexToColor(data['settings']['dark_bg_gradient_color2'] ?? '#455A64'); // Default to dark blue grey
           });
         }
       } else {
@@ -230,11 +251,14 @@ class _StartPageState extends State<StartPage> {
     required String title,
     required Widget content,
     VoidCallback? onTap,
-    Color? backgroundColor,
   }) {
+    // Determine card background color based on theme
+    final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final Color cardBackgroundColor = isDarkMode ? Colors.black : Colors.white; // Fixed to black/white
+
     return Card(
       margin: const EdgeInsets.all(8.0),
-      color: backgroundColor ?? Theme.of(context).cardColor,
+      color: cardBackgroundColor, // Apply the determined card background color
       elevation: 4.0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
       child: InkWell(
@@ -250,7 +274,8 @@ class _StartPageState extends State<StartPage> {
                 style: GoogleFonts.inter(
                   fontSize: 14, // Reduced font size for card titles
                   fontWeight: FontWeight.bold,
-                  color: Theme.of(context).textTheme.headlineSmall?.color,
+                  // Text color adapted to theme
+                  color: Theme.of(context).textTheme.headlineSmall?.color, 
                 ),
               ),
               const SizedBox(height: 10),
@@ -277,241 +302,280 @@ class _StartPageState extends State<StartPage> {
     // Get the display version of the server address
     final String displayServerAddress = _getBaseHost(widget.serverAddress);
 
+    // Define the gradients based on current theme brightness using fetched colors
+    final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final Gradient backgroundGradient = isDarkMode
+        ? LinearGradient(
+            colors: [_darkGradientColor1, _darkGradientColor2], // Use fetched dark mode colors
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          )
+        : LinearGradient(
+            colors: [_gradientColor1, _gradientColor2], // Use fetched light mode colors
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          );
+
     return Scaffold(
-      body: RefreshIndicator(
-        onRefresh: _fetchDashboardData, // This will now reload the role as well
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : _errorMessage != null
-                ? Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.error_outline, color: Colors.red, size: 48),
-                          const SizedBox(height: 10),
-                          Text(
-                            _errorMessage!,
-                            style: GoogleFonts.inter(color: Colors.red, fontSize: 16),
-                            textAlign: TextAlign.center,
+      // Set Scaffold's background color to transparent to allow the gradient to show through
+      backgroundColor: Colors.transparent, 
+      body: Stack( // Use Stack to layer the background and content
+        children: [
+          // Background Gradient Container (fills the entire Scaffold body)
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: backgroundGradient, // Apply the determined gradient
+              ),
+            ),
+          ),
+          // Foreground Content (RefreshIndicator and SingleChildScrollView)
+          RefreshIndicator(
+            onRefresh: _fetchDashboardData, // This will now reload the role as well
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _errorMessage != null
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.error_outline, color: Colors.red, size: 48),
+                              const SizedBox(height: 10),
+                              Text(
+                                _errorMessage!,
+                                style: GoogleFonts.inter(color: Colors.red, fontSize: 16),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 20),
+                              ElevatedButton(
+                                onPressed: _fetchDashboardData,
+                                child: const Text('Erneut versuchen'),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 20),
-                          ElevatedButton(
-                            onPressed: _fetchDashboardData,
-                            child: const Text('Erneut versuchen'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  )
-                : SingleChildScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(), // Allow pull-to-refresh even if content is small
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          // App Title & Logo Section
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 0.0, vertical: 16.0), // Padding adjusted
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween, // Distribute title and logo
-                              crossAxisAlignment: CrossAxisAlignment.start, // Align to top
-                              children: [
-                                // App Title (left)
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start, // Align title to start
-                                    children: [
-                                      Text(
-                                        _appTitle, // Dynamically set from admin settings
-                                        style: GoogleFonts.inter(
-                                          fontSize: 28,
-                                          fontWeight: FontWeight.bold,
-                                          color: Theme.of(context).textTheme.headlineLarge?.color,
-                                        ),
-                                        textAlign: TextAlign.left, // Ensure text aligns left
-                                      ),
-                                      Text(
-                                        'Server: $displayServerAddress', // Use the cleaned display address
-                                        style: GoogleFonts.inter(
-                                          fontSize: 14,
-                                          color: Colors.grey[600],
-                                        ),
-                                        textAlign: TextAlign.left, // Ensure text aligns left
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                
-                                // Logo Display (right)
-                                if (_logoFullPath != null && _logoFullPath!.isNotEmpty)
+                        ),
+                      )
+                    : LayoutBuilder( // Use LayoutBuilder to get constraints
+                        builder: (context, constraints) {
+                          return SingleChildScrollView(
+                            physics: const AlwaysScrollableScrollPhysics(), // Allow pull-to-refresh even if content is small
+                            child: Padding(
+                              // Add padding at the bottom of the SingleChildScrollView equal to
+                              // the height of the BottomAppBar (60.0) + system bottom padding
+                              padding: EdgeInsets.fromLTRB(
+                                16.0,
+                                16.0,
+                                16.0,
+                                16.0 + MediaQuery.of(context).padding.bottom + kBottomNavigationBarHeight, // Adjusted bottom padding
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  // App Title & Logo Section
                                   Padding(
-                                    padding: const EdgeInsets.only(left: 16.0), // Add left padding to separate from title
-                                    child: Image.network(
-                                      _logoFullPath!, // Use _logoFullPath directly
-                                      height: 80, // Adjust height as needed for top-right placement
-                                      width: 80, // Add width for square shape, adjust as needed
-                                      fit: BoxFit.contain, // Ensures image fits without cropping
-                                      // IMPORTANT: Added a ValueKey to force image reload
-                                      key: ValueKey(_logoFullPath), 
-                                      errorBuilder: (context, error, stackTrace) =>
-                                          // Fallback if image fails to load
-                                          Icon(Icons.business, size: 80, color: Theme.of(context).iconTheme.color),
-                                    ),
-                                  )
-                                else
-                                  // Default fallback icon if no URL is provided
-                                  Icon(Icons.business, size: 80, color: Theme.of(context).iconTheme.color),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 30),
-
-                          // Row for My Evaluations and Current Date/Time
-                          SizedBox(
-                            height: 150, // Fixed height for this row of cards
-                            child: Row(
-                              children: [
-                                // Conditional display for "Meine Bewertungen"
-                                if (_userHasRequiredRole(['Administrator', 'Bewerter']))
-                                Expanded(
-                                  child: _buildDashboardCard(
-                                    context: context,
-                                    title: 'Meine Bewertungen',
-                                    content: Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
+                                    padding: const EdgeInsets.symmetric(horizontal: 0.0, vertical: 16.0), // Padding adjusted
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween, // Distribute title and logo
+                                      crossAxisAlignment: CrossAxisAlignment.start, // Align to top
                                       children: [
-                                        Text(
-                                          'Anzahl',
-                                          style: GoogleFonts.inter(fontSize: 12), // Reduced font size to 12
-                                        ),
-                                        Text(
-                                          '$_myEvaluationsCount',
-                                          style: GoogleFonts.inter(fontSize: 24, fontWeight: FontWeight.bold), 
-                                        ),
-                                      ],
-                                    ),
-                                    onTap: () {
-                                      // Navigate to My Evaluations Page
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) => MyEvaluationsPage(serverAddress: widget.serverAddress),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ),
-                                // Ensure consistent layout even if card is hidden by using Spacer conditionally
-                                if (!_userHasRequiredRole(['Administrator', 'Bewerter']))
-                                  const Spacer(), // Use Spacer to take up space if first card is not shown
-
-                                Expanded(
-                                  child: _buildDashboardCard(
-                                    context: context,
-                                    title: 'Aktuelles Datum & Uhrzeit',
-                                    content: Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        Text(
-                                          currentDateTime.split(' ')[0], // Date part
-                                          style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold), 
-                                        ),
-                                        Text(
-                                          currentDateTime.split(' ')[1], // Time part
-                                          style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold), 
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-
-                          // Ranking Section
-                          SizedBox(
-                            height: 200, // Fixed height for ranking card
-                            child: _buildDashboardCard(
-                              context: context,
-                              title: 'Rangliste',
-                              content: _topRankings.isEmpty
-                                  ? Center(
-                                      child: Text(
-                                        'Keine Ranglistendaten verfügbar.',
-                                        style: GoogleFonts.inter(color: Colors.grey),
-                                        textAlign: TextAlign.center,
-                                      ),
-                                    )
-                                  : ListView.builder(
-                                      itemCount: _topRankings.length,
-                                      itemBuilder: (context, index) {
-                                        final ranking = _topRankings[index];
-                                        return Padding(
-                                          padding: const EdgeInsets.symmetric(vertical: 4.0),
-                                          child: Row(
-                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        // App Title (left)
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start, // Align title to start
                                             children: [
                                               Text(
-                                                '${ranking['rank']}. ${ranking['stand_name']}',
-                                                style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600),
+                                                _appTitle, // Dynamically set from admin settings
+                                                style: GoogleFonts.inter(
+                                                  fontSize: 28,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Theme.of(context).textTheme.headlineLarge?.color,
+                                                ),
+                                                textAlign: TextAlign.left, // Ensure text aligns left
                                               ),
                                               Text(
-                                                '${ranking['total_achieved_score']} Punkte',
-                                                style: GoogleFonts.inter(fontSize: 16),
+                                                'Server: $displayServerAddress', // Use the cleaned display address
+                                                style: GoogleFonts.inter(
+                                                  fontSize: 14,
+                                                  color: Colors.grey[600],
+                                                ),
+                                                textAlign: TextAlign.left, // Ensure text aligns left
                                               ),
                                             ],
+                                          ),
+                                        ),
+                                        
+                                        // Logo Display (right)
+                                        if (_logoFullPath != null && _logoFullPath!.isNotEmpty)
+                                          Padding(
+                                            padding: const EdgeInsets.only(left: 16.0), // Add left padding to separate from title
+                                            child: Image.network(
+                                              _logoFullPath!, // Use _logoFullPath directly
+                                              height: 80, // Adjust height as needed for top-right placement
+                                              width: 80, // Add width for square shape, adjust as needed
+                                              fit: BoxFit.contain, // Ensures image fits without cropping
+                                              // IMPORTANT: Added a ValueKey to force image reload
+                                              key: ValueKey(_logoFullPath), 
+                                              errorBuilder: (context, error, stackTrace) =>
+                                                  // Fallback if image fails to load
+                                                  Icon(Icons.business, size: 80, color: Theme.of(context).iconTheme.color),
+                                            ),
+                                          )
+                                        else
+                                          // Default fallback icon if no URL is provided
+                                          Icon(Icons.business, size: 80, color: Theme.of(context).iconTheme.color),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 30),
+
+                                  // Row for My Evaluations and Current Date/Time
+                                  SizedBox(
+                                    height: 150, // Fixed height for this row of cards
+                                    child: Row(
+                                      children: [
+                                        // Conditional display for "Meine Bewertungen"
+                                        if (_userHasRequiredRole(['Administrator', 'Bewerter']))
+                                        Expanded(
+                                          child: _buildDashboardCard(
+                                            context: context,
+                                            title: 'Meine Bewertungen',
+                                            content: Column(
+                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              children: [
+                                                Text(
+                                                  'Anzahl',
+                                                  style: GoogleFonts.inter(fontSize: 12), // Reduced font size to 12
+                                                ),
+                                                Text(
+                                                  '$_myEvaluationsCount',
+                                                  style: GoogleFonts.inter(fontSize: 24, fontWeight: FontWeight.bold), 
+                                                ),
+                                              ],
+                                            ),
+                                            onTap: () {
+                                              // Navigate to My Evaluations Page
+                                              Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (context) => MyEvaluationsPage(serverAddress: widget.serverAddress),
+                                                ),
+                                              );
+                                            },
+                                          ),
+                                        ),
+                                        // Ensure consistent layout even if card is hidden by using Spacer conditionally
+                                        if (!_userHasRequiredRole(['Administrator', 'Bewerter']))
+                                          const Spacer(), // Use Spacer to take up space if first card is not shown
+
+                                        Expanded(
+                                          child: _buildDashboardCard(
+                                            context: context,
+                                            title: 'Aktuelles Datum & Uhrzeit',
+                                            content: Column(
+                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              children: [
+                                                Text(
+                                                  currentDateTime.split(' ')[0], // Date part
+                                                  style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold), 
+                                                ),
+                                                Text(
+                                                  currentDateTime.split(' ')[1], // Time part
+                                                  style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold), 
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 20),
+
+                                  // Ranking Section
+                                  SizedBox(
+                                    height: 200, // Fixed height for ranking card
+                                    child: _buildDashboardCard(
+                                      context: context,
+                                      title: 'Rangliste',
+                                      content: _topRankings.isEmpty
+                                          ? Center(
+                                              child: Text(
+                                                'Keine Ranglistendaten verfügbar.',
+                                                style: GoogleFonts.inter(color: Colors.grey),
+                                                textAlign: TextAlign.center,
+                                              ),
+                                            )
+                                          : ListView.builder(
+                                              itemCount: _topRankings.length,
+                                              itemBuilder: (context, index) {
+                                                final ranking = _topRankings[index];
+                                                return Padding(
+                                                  padding: const EdgeInsets.symmetric(vertical: 4.0),
+                                                  child: Row(
+                                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                                    children: [
+                                                      Text(
+                                                        '${ranking['rank']}. ${ranking['stand_name']}',
+                                                        style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600),
+                                                      ),
+                                                      Text(
+                                                        '${ranking['total_achieved_score']} Punkte',
+                                                        style: GoogleFonts.inter(fontSize: 16),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                );
+                                              },
+                                            ),
+                                      onTap: () {
+                                        // Navigate to Ranking Page
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) => RankingPage(serverAddress: widget.serverAddress),
                                           ),
                                         );
                                       },
                                     ),
-                              onTap: () {
-                                // Navigate to Ranking Page
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => RankingPage(serverAddress: widget.serverAddress),
                                   ),
-                                );
-                              },
-                            ),
-                          ),
-                          const SizedBox(height: 20),
+                                  const SizedBox(height: 20),
 
-                          // Conditional display for "Offene Räume"
-                          if (_userHasRequiredRole(['Administrator', 'Inspektor']))
-                          SizedBox(
-                            height: 150, // Fixed height for open rooms card
-                            child: _buildDashboardCard(
-                              context: context,
-                              title: 'Offene Räume',
-                              content: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    'Anzahl',
-                                    style: GoogleFonts.inter(fontSize: 12), // Reduced font size to 12
-                                  ),
-                                  Text(
-                                    '$_openRoomsCount',
-                                    style: GoogleFonts.inter(fontSize: 24, fontWeight: FontWeight.bold, color: _openRoomsCount > 0 ? Colors.red : Theme.of(context).textTheme.headlineLarge?.color), 
+                                  // Conditional display for "Offene Räume"
+                                  if (_userHasRequiredRole(['Administrator', 'Inspektor']))
+                                  SizedBox(
+                                    height: 150, // Fixed height for open rooms card
+                                    child: _buildDashboardCard(
+                                      context: context,
+                                      title: 'Offene Räume',
+                                      content: Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Text(
+                                            'Anzahl',
+                                            style: GoogleFonts.inter(fontSize: 12), // Reduced font size to 12
+                                          ),
+                                          Text(
+                                            '$_openRoomsCount',
+                                            style: GoogleFonts.inter(fontSize: 24, fontWeight: FontWeight.bold, color: _openRoomsCount > 0 ? Colors.red : Theme.of(context).textTheme.headlineLarge?.color), 
+                                          ),
+                                        ],
+                                      ),
+                                      onTap: () {
+                                        // Changed: Instead of pushing a new route, request HomePage to change tab
+                                        widget.onTabChangeRequested(1); // Index 1 is for 'Räume'
+                                      },
+                                    ),
                                   ),
                                 ],
                               ),
-                              onTap: () {
-                                // Changed: Instead of pushing a new route, request HomePage to change tab
-                                widget.onTabChangeRequested(1); // Index 1 is for 'Räume'
-                              },
                             ),
-                          ),
-                          const SizedBox(height: 20), // Add padding at the bottom of the column
-                        ],
+                          );
+                        }
                       ),
-                    ),
-                  ),
+          ),
+        ],
       ),
     );
   }

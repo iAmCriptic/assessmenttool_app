@@ -1,10 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:provider/provider.dart'; // Keep: import 'package:provider/provider.dart';
-import 'package:http/http.dart' as http; // Needed for logout in MorePage
 
-import '../theme_manager.dart'; // Keep: import '../theme_manager.dart'; // Import ThemeNotifier
-import '../auth/login_page.dart'; // Import LoginPage for navigation
 import '../pages/start_page.dart'; // Import StartPage
 import '../pages/rooms_page.dart'; // Import RoomsPage - this path is correct now
 import '../pages/warnings_page.dart'; // Import WarningsPage
@@ -53,8 +48,15 @@ class _HomePageState extends State<HomePage> {
   /// Used for "Start", "Räume", "Warnungen", "Mehr"
   Widget _buildNavItem(BuildContext context, IconData icon, int index) {
     final bool isSelected = _selectedIndex == index;
-    // Determine colors based on selected state and current theme brightness
-    final Color iconColor = isSelected ? Colors.white : (Theme.of(context).brightness == Brightness.dark ? Colors.blue[100]! : Colors.blue[800]!);
+    final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
+    // Bestimme die Farbe des Icons basierend auf dem Modus und der Auswahl
+    final Color iconColor;
+    if (isDarkMode) { // Dark Mode: Navbar ist schwarz, Icons sollen hell sein
+      iconColor = isSelected ? Colors.lightBlueAccent : Colors.white; // Hervorhebung für ausgewähltes Icon
+    } else { // Light Mode: Navbar ist weiß, Icons sollen dunkel sein
+      iconColor = isSelected ? Colors.blue[900]! : Colors.grey[700]!; // Hervorhebung für ausgewähltes Icon
+    }
 
     return Expanded(
       child: Material( // Use Material for ink splash effect
@@ -72,48 +74,31 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // No _onItemTapped function needed anymore, _changeTab handles it all
-
   @override
   Widget build(BuildContext context) {
-    // Keep: Access ThemeNotifier
-    final themeNotifier = Provider.of<ThemeNotifier>(context, listen: false);
-
+    final bool isDarkMode = Theme.of(context).brightness == Brightness.dark; // Zugriff auf den aktuellen Theme-Modus
     final double appBarContentHeight = 60.0; 
 
     return Scaffold(
       // Set resizeToAvoidBottomInset to false to prevent FAB from moving up with keyboard
       resizeToAvoidBottomInset: false, // Prevents keyboard from pushing content up
+      // Erweitert den Body hinter die BottomAppBar, damit der Hintergrund ganz nach unten reicht
+      extendBody: true, 
+      
+      // Setzt den Hintergrund des Scaffold auf null, um den Theme-Standard zu verwenden
+      backgroundColor: null, 
       
       // No AppBar here, as per user's request for HomePage
       body: _pages[_selectedIndex], // Display the selected page content
       
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          // Action for the central 'Bewerten' button
-          _changeTab(2); // Select the 'Bewerten' tab when FAB is pressed (index 2)
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Navigiere zur Bewertungsseite!'),
-              behavior: SnackBarBehavior.floating, // Makes the SnackBar floating
-              margin: EdgeInsets.fromLTRB(16.0, MediaQuery.of(context).padding.top + 10.0, 16.0, 0.0), // Positions it at the top
-              duration: const Duration(seconds: 2), // Short display duration
-            ),
-          );
-        },
-        backgroundColor: Colors.orange[700], // Orange color like in your web design
-        foregroundColor: Colors.white,
-        shape: const CircleBorder(), // Make it circular
-        elevation: 8.0, // Add some shadow
-        child: const Icon(Icons.add, size: 28), // Plus icon, slightly larger
-      ),
       bottomNavigationBar: BottomAppBar(
-        shape: const CircularNotchedRectangle(), // Notch for the FAB
-        notchMargin: 8.0,
-        // Match AppBar color - use theme's primary color or dark-specific color
-        color: Theme.of(context).brightness == Brightness.dark ? Colors.blueGrey[900] : Theme.of(context).primaryColor, 
-        elevation: 8.0,
+        // Die Notch (Loch) wird entfernt, da der FAB direkt in die Leiste integriert wird
+        // shape: const CircularNotchedRectangle(), 
+        // notchMargin: 8.0,
+        
+        // Farbe der BottomAppBar basierend auf dem Theme anpassen
+        color: isDarkMode ? Colors.black : Colors.white, 
+        elevation: 8.0, // Schatten für die BottomAppBar beibehalten
         child: SizedBox( // Explicitly define the height for the content row
           height: appBarContentHeight, // Apply the slightly larger height
           child: Row(
@@ -122,9 +107,40 @@ class _HomePageState extends State<HomePage> {
               _buildNavItem(context, Icons.home, 0), // Start
               _buildNavItem(context, Icons.meeting_room, 1), // Räume (New index 1)
               
-              // Central placeholder for the FAB without any label
-              const Expanded( // Use Expanded to give it proper spacing
-                child: SizedBox(height: 1.0), // Minimal height for the expanded slot
+              // Integrierter Plus-Button anstelle des FAB-Platzhalters
+              Expanded(
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () {
+                      _changeTab(2); // Select the 'Bewerten' tab when FAB is pressed (index 2)
+                      // Entfernt: ScaffoldMessenger.of(context).showSnackBar(...);
+                    },
+                    child: SizedBox(
+                      height: kBottomNavigationBarHeight,
+                      child: Center(
+                        child: Container( // Der Plus-Button als Teil der Leiste
+                          padding: const EdgeInsets.all(8), // Padding um das Icon für den runden Effekt
+                          decoration: BoxDecoration(
+                            // Hintergrundfarbe des Plus-Buttons basierend auf dem Theme
+                            color: isDarkMode ? Colors.white : Colors.black, 
+                            shape: BoxShape.circle, // Rund
+                            boxShadow: [ // Schatten wie beim ursprünglichen FAB
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.3),
+                                spreadRadius: 2,
+                                blurRadius: 5,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                          // Icon und Farbe des Plus-Buttons basierend auf dem Theme
+                          child: Icon(Icons.edit_note, size: 28, color: isDarkMode ? Colors.black : Colors.white), 
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ),
 
               _buildNavItem(context, Icons.warning, 3), // Warnungen (New index 3)

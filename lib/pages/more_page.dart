@@ -24,6 +24,7 @@ class _MorePageState extends State<MorePage> {
   String? _logoFullPath; // Changed to _logoFullPath to match StartPage logic
   String _frontendVersion = 'V1.0.0 - Beta'; // Placeholder for frontend version
   String _backendVersion = 'V 2.1.3'; // Placeholder for backend version
+  String? _sessionCookie; // Hinzugefügt: Deklaration der _sessionCookie Variable
 
   // Neue State-Variablen für dynamische Farbverläufe vom Server
   Color _gradientColor1 = Colors.blue.shade50; // Standard Hellmodus Startfarbe
@@ -35,9 +36,17 @@ class _MorePageState extends State<MorePage> {
   @override
   void initState() {
     super.initState();
-    _loadUserRole().then((_) { // Load user role on init
-      _fetchPageData(); // Ruft jetzt alle Daten ab (Einstellungen & Versionen)
+    _loadSessionCookie().then((_) {
+      _loadUserRole().then((_) { // Load user role on init
+        _fetchPageData(); // Ruft jetzt alle Daten ab (Einstellungen & Versionen)
+      });
     });
+  }
+
+  /// Loads the session cookie from SharedPreferences.
+  Future<void> _loadSessionCookie() async {
+    final prefs = await SharedPreferences.getInstance();
+    _sessionCookie = prefs.getString('sessionCookie');
   }
 
   /// Loads the user's role from SharedPreferences.
@@ -62,8 +71,15 @@ class _MorePageState extends State<MorePage> {
 
   /// Fetches all necessary data for the page (app settings and versions).
   Future<void> _fetchPageData() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String? sessionCookie = prefs.getString('sessionCookie');
+
+    final headers = <String, String>{};
+    if (sessionCookie != null) {
+      headers['Cookie'] = sessionCookie;
+    }
+
     try {
-      final headers = <String, String>{}; // Headers will be managed by HTTP client
       final Future<http.Response> appSettingsFuture =
           http.get(Uri.parse('${widget.serverAddress}/api/admin_settings'), headers: headers);
       final Future<http.Response> versionsFuture =
@@ -390,26 +406,42 @@ class _MorePageState extends State<MorePage> {
                     // Version Information Section
                     Align(
                       alignment: Alignment.center,
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 20.0),
-                        child: Column(
-                          children: [
-                            Text(
-                              'Erstellt von Enrico R. Matzke',
-                              style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[600]),
-                              textAlign: TextAlign.center,
-                            ),
-                            Text(
-                              'Frontend version: $_frontendVersion',
-                              style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[600]),
-                              textAlign: TextAlign.center,
-                            ),
-                            Text(
-                              'Backend version: $_backendVersion',
-                              style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[600]),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
+                      child: Card( // Added Card for background
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        color: isDarkMode 
+                            ? Colors.black.withOpacity(0.7) // Semi-transparent black for dark mode
+                            : Colors.white.withOpacity(0.7), // Semi-transparent white for light mode
+                        child: Padding(
+                          padding: const EdgeInsets.all(12.0), // Added padding inside the card
+                          child: Column(
+                            children: [
+                              Text(
+                                'Erstellt von Enrico R. Matzke',
+                                style: GoogleFonts.inter(
+                                  fontSize: 14, 
+                                  color: isDarkMode ? Colors.white70 : Colors.black87, // Adjusted text color for readability
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                              Text(
+                                'Frontend version: $_frontendVersion',
+                                style: GoogleFonts.inter(
+                                  fontSize: 14, 
+                                  color: isDarkMode ? Colors.white70 : Colors.black87, // Adjusted text color for readability
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                              Text(
+                                'Backend version: $_backendVersion',
+                                style: GoogleFonts.inter(
+                                  fontSize: 14, 
+                                  color: isDarkMode ? Colors.white70 : Colors.black87, // Adjusted text color for readability
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),

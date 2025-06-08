@@ -80,7 +80,7 @@ class _EvaluationPageState extends State<EvaluationPage> {
   void initState() {
     super.initState();
     _loadSessionCookie().then((_) {
-      _loadUserRole().then((_) {
+      _loadUserRole().then((_) { // Load user role on init
         // Fetch initial data only if user has access roles
         if (_userHasRequiredRole(['Administrator', 'Bewerter'])) {
           _fetchPageData(); // Ruft jetzt alle Daten ab (Stände, Kriterien & Einstellungen)
@@ -582,13 +582,28 @@ class _EvaluationPageState extends State<EvaluationPage> {
                       decoration: InputDecoration(
                         labelText: 'Stand auswählen:',
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                        filled: true, // Wichtig für Füllfarbe
+                        fillColor: isDarkMode 
+                            ? Colors.black.withOpacity(0.7) // Halbtransparentes Schwarz im Dark Mode
+                            : Colors.white.withOpacity(0.7), // Halbtransparentes Weiß im Light Mode
+                        labelStyle: GoogleFonts.inter(
+                          color: isDarkMode ? Colors.white70 : Colors.black87, // Anpassung der Label-Farbe
+                        ),
+                        hintStyle: GoogleFonts.inter(
+                          color: isDarkMode ? Colors.white54 : Colors.black54, // Anpassung der Hint-Farbe
+                        ),
                       ),
                       hint: Text('Bitte Stand auswählen', style: GoogleFonts.inter()),
                       isExpanded: true,
                       items: _stands.map((stand) {
                         return DropdownMenuItem<Stand>(
                           value: stand,
-                          child: Text('${stand.name} (${stand.roomName ?? "Kein Raum"})', style: GoogleFonts.inter()),
+                          child: Text(
+                            '${stand.name} (${stand.roomName ?? "Kein Raum"})',
+                            style: GoogleFonts.inter(
+                              color: isDarkMode ? Colors.white : Colors.black87, // Textfarbe der Dropdown-Items
+                            ),
+                          ),
                         );
                       }).toList(),
                       onChanged: (Stand? newValue) {

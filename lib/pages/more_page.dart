@@ -8,6 +8,14 @@ import 'package:shared_preferences/shared_preferences.dart'; // For user role ac
 import '../auth/login_page.dart'; // Import LoginPage for navigation
 import '../theme_manager.dart'; // Import ThemeNotifier
 
+// Importiere die neuen Verwaltungsseiten
+import '../pages/manage_users_page.dart';
+import '../pages/manage_stands_page.dart';
+import '../pages/manage_criteria_page.dart';
+import '../pages/manage_rooms_page.dart';
+import '../pages/manage_lists_page.dart';
+
+
 /// The 'More' page, containing additional options like logout and theme toggle,
 /// and administrative management links.
 class MorePage extends StatefulWidget {
@@ -270,52 +278,71 @@ class _MorePageState extends State<MorePage> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    Card(
-                      elevation: 4,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
-                      color: isDarkMode ? Colors.black : Colors.white, // Hintergrundfarbe der Karte
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Column(
-                          children: [
-                            _buildManagementTile(
-                              context,
-                              'Benutzer verwalten',
-                              icon: Icons.people_alt,
-                              isComingSoon: true,
-                              showOnlyAdmin: true,
-                            ),
-                            _buildManagementTile(
-                              context,
-                              'Stände verwalten',
-                              icon: Icons.store,
-                              isComingSoon: true,
-                              showOnlyAdmin: true,
-                            ),
-                            _buildManagementTile(
-                              context,
-                              'Kriterien verwalten',
-                              icon: Icons.rule,
-                              isComingSoon: true,
-                              showOnlyAdmin: true,
-                            ),
-                            _buildManagementTile(
-                              context,
-                              'Räume verwalten',
-                              icon: Icons.meeting_room,
-                              isComingSoon: true,
-                              showOnlyAdmin: true,
-                            ),
-                            _buildManagementTile(
-                              context,
-                              'Listen verwalten',
-                              icon: Icons.list_alt,
-                              isComingSoon: true,
-                              showOnlyAdmin: true,
-                            ),
-                          ],
-                        ),
-                      ),
+                    // Each management option is now its own Card
+                    _buildManagementTile(
+                      context,
+                      'Benutzer verwalten',
+                      icon: Icons.people_alt,
+                      isComingSoon: false, // Geändert auf false, da Seite existiert
+                      showOnlyAdmin: true,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => ManageUsersPage(serverAddress: widget.serverAddress)),
+                        );
+                      },
+                    ),
+                    _buildManagementTile(
+                      context,
+                      'Stände verwalten',
+                      icon: Icons.store,
+                      isComingSoon: false, // Geändert auf false, da Seite existiert
+                      showOnlyAdmin: true,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => ManageStandsPage(serverAddress: widget.serverAddress)),
+                        );
+                      },
+                    ),
+                    _buildManagementTile(
+                      context,
+                      'Kriterien verwalten',
+                      icon: Icons.rule,
+                      isComingSoon: false, // Geändert auf false, da Seite existiert
+                      showOnlyAdmin: true,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => ManageCriteriaPage(serverAddress: widget.serverAddress)),
+                        );
+                      },
+                    ),
+                    _buildManagementTile(
+                      context,
+                      'Räume verwalten',
+                      icon: Icons.meeting_room,
+                      isComingSoon: false, // Geändert auf false, da Seite existiert
+                      showOnlyAdmin: true,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => ManageRoomsPage(serverAddress: widget.serverAddress)),
+                        );
+                      },
+                    ),
+                    _buildManagementTile(
+                      context,
+                      'Listen verwalten',
+                      icon: Icons.list_alt,
+                      isComingSoon: false, // Geändert auf false, da Seite existiert
+                      showOnlyAdmin: true,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => ManageListsPage(serverAddress: widget.serverAddress)),
+                        );
+                      },
                     ),
                     const SizedBox(height: 40), // More space before buttons
 
@@ -456,22 +483,29 @@ class _MorePageState extends State<MorePage> {
     );
   }
 
-  // Helper method to build a management tile
+  // Helper method to build a management tile (now returns a Card)
   Widget _buildManagementTile(
     BuildContext context,
     String title, {
     IconData? icon,
     bool isComingSoon = false,
     bool showOnlyAdmin = false,
+    VoidCallback? onTap, // Added onTap callback
   }) {
     // Only show the tile if conditions are met
     if (showOnlyAdmin && !_isAdmin()) {
       return const SizedBox.shrink(); // Hide if not admin and showOnlyAdmin is true
     }
 
-    return Column(
-      children: [
-        ListTile(
+    final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0), // Add padding between cards
+      child: Card(
+        elevation: 4,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
+        color: isDarkMode ? Colors.black : Colors.white, // Hintergrundfarbe der Karte
+        child: ListTile(
           leading: icon != null ? Icon(icon, color: Theme.of(context).iconTheme.color) : null,
           title: Text(
             title,
@@ -493,18 +527,9 @@ class _MorePageState extends State<MorePage> {
               : null,
           onTap: isComingSoon
               ? null // Disable tap if coming soon
-              : () {
-                  // TODO: Implement navigation to specific management pages
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('$title - Funktion in Kürze verfügbar!'),
-                      duration: const Duration(seconds: 2),
-                    ),
-                  );
-                },
+              : onTap, // Use the provided onTap callback
         ),
-        const Divider(height: 1, indent: 16, endIndent: 16), // Separator
-      ],
+      ),
     );
   }
 }

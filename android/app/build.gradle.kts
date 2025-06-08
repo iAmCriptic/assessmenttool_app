@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.example.bewertungstool"
-    compileSdk = 24
+    compileSdk = flutter.compileSdkVersion
     ndkVersion = "27.0.12077973"
 
     compileOptions {

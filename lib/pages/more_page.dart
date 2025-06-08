@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../auth/login_page.dart'; // Import LoginPage for navigation
-import '../auth/admin_setup_page.dart'; // Import AdminSetupPage if needed
+// Import AdminSetupPage if needed
 import 'package:provider/provider.dart';
 import '../theme_manager.dart'; // Import ThemeNotifier
 

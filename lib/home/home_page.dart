@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import 'package:http/http.dart' as http; // Needed for logout in MorePage
+import 'package:http/http.dart' as http;
 
-import '../theme_manager.dart'; // Import ThemeNotifier
-import '../auth/login_page.dart'; // Import LoginPage for navigation
-import '../pages/start_page.dart'; // Import StartPage
-import '../pages/rooms_page.dart'; // Import RoomsPage - this path is correct now
-import '../pages/warnings_page.dart'; // Import WarningsPage
-import '../pages/more_page.dart'; // Import MorePage
+import '../theme_manager.dart';
+import '../auth/login_page.dart';
+import '../pages/start_page.dart';
+import '../pages/rooms_page.dart';
+import '../pages/warnings_page.dart';
+import '../pages/more_page.dart';
+import '../pages/evaluation_page.dart';
 
 /// HomePage is the main screen after successful login,
 /// featuring a Bottom Navigation Bar and a Floating Action Button.
@@ -42,13 +43,8 @@ class _HomePageState extends State<HomePage> {
         onTabChangeRequested: _changeTab, // Pass the callback here
       ), // 'Start' page
       RoomsPage(serverAddress: widget.serverAddress), // 'Räume' page - Corrected constructor
-      const Center( // Placeholder for 'Bewerten' page (index 2)
-        child: Text(
-          'Bewertungsseite',
-          style: TextStyle(fontSize: 24),
-        ),
-      ),
-      const WarningsPage(), // 'Warnungen' page - Assuming it doesn't need serverAddress yet
+      EvaluationPage(serverAddress: widget.serverAddress), // NEW: 'Bewerten' page (index 2)
+      WarningsPage(), // 'Warnungen' page - Assuming it doesn't need serverAddress yet
       MorePage(serverAddress: widget.serverAddress), // 'Mehr' page
     ];
   }
@@ -76,11 +72,9 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // No _onItemTapped function needed anymore, _changeTab handles it all
-
   @override
   Widget build(BuildContext context) {
-    // Access ThemeNotifier
+    // Keep: Access ThemeNotifier
     final themeNotifier = Provider.of<ThemeNotifier>(context, listen: false);
 
     final double appBarContentHeight = 60.0; 
@@ -93,17 +87,8 @@ class _HomePageState extends State<HomePage> {
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           // Action for the central 'Bewerten' button
-          _changeTab(2); // Select the 'Bewerten' tab when FAB is pressed
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Navigiere zur Bewertungsseite!'),
-              behavior: SnackBarBehavior.floating, // Makes the SnackBar floating
-              margin: EdgeInsets.fromLTRB(16.0, MediaQuery.of(context).padding.top + 10.0, 16.0, 0.0), // Positions it at the top
-              duration: const Duration(seconds: 2), // Short display duration
-            ),
-          );
-          // TODO: Here could be the direct navigation to the evaluation page,
-          // or a modal could be opened, depending on how you want to start the evaluation.
+          _changeTab(2); // Select the 'Bewerten' tab when FAB is pressed (index 2)
+          // Removed SnackBar message as requested
         },
         backgroundColor: Colors.orange[700], // Orange color like in your web design
         foregroundColor: Colors.white,

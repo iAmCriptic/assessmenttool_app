@@ -8,7 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart'; // Import for Share
 // WICHTIG: Sicherstellen, dass diese Pfade korrekt sind und die Dateien existieren
 import '../pages/my_evaluations_page.dart'; // Direct import from pages
 import '../pages/ranking_page.dart'; // Direct import from pages
-import '../pages/rooms_page.dart'; // Direct import from pages
+// Direct import from pages
 
 /// The 'Start' page, displayed as the first tab in the bottom navigation.
 /// It fetches and displays dashboard information like app title, logo,
@@ -45,9 +45,7 @@ class _StartPageState extends State<StartPage> {
   void initState() {
     super.initState();
     _loadSessionCookie().then((_) { // Load cookie first
-      _loadUserRole().then((_) { // Then load user role
-        _fetchDashboardData(); // Then fetch dashboard data
-      });
+      _fetchDashboardData(); // Then fetch dashboard data (which now includes role loading)
     });
   }
 
@@ -111,6 +109,9 @@ class _StartPageState extends State<StartPage> {
       _isLoading = true;
       _errorMessage = null;
     });
+
+    // FIRST: Reload user role to ensure the most current permissions
+    await _loadUserRole();
 
     try {
       final headers = _getAuthHeaders(); // Get headers with cookie
@@ -278,7 +279,7 @@ class _StartPageState extends State<StartPage> {
 
     return Scaffold(
       body: RefreshIndicator(
-        onRefresh: _fetchDashboardData,
+        onRefresh: _fetchDashboardData, // This will now reload the role as well
         child: _isLoading
             ? const Center(child: CircularProgressIndicator())
             : _errorMessage != null

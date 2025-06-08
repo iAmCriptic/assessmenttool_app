@@ -73,10 +73,6 @@ class _LoginPageState extends State<LoginPage> {
     await prefs.setString('password', password);
   }
 
-  // The _clearCredentials method is now static in LoginPage,
-  // so we don't need it here as a private instance method anymore.
-  // It's directly accessible via LoginPage.clearSavedCredentials()
-
   @override
   void dispose() {
     // Dispose controllers to prevent memory leaks
@@ -133,7 +129,12 @@ class _LoginPageState extends State<LoginPage> {
         if (responseBody['success'] == true) {
           // Login successful!
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(responseBody['message'])),
+            SnackBar(
+              content: Text(responseBody['message']),
+              behavior: SnackBarBehavior.floating,
+              margin: EdgeInsets.only(top: MediaQuery.of(context).padding.top + 10.0, left: 16.0, right: 16.0), // Positions it at the top
+              duration: const Duration(seconds: 2),
+            ),
           );
 
           // Save credentials after successful login
@@ -159,7 +160,7 @@ class _LoginPageState extends State<LoginPage> {
           if (isAutoLogin) await LoginPage.clearSavedCredentials(); // Clear if auto-login failed
         }
       } else {
-        // HTTP error (e.g., 401 Unauthorized)
+        // HTTP error (z.g., 401 Unauthorized)
         final Map<String, dynamic> errorBody = json.decode(response.body);
         setState(() {
           _errorMessage = errorBody['message'] ?? 'Ein unerwarteter Fehler ist aufgetreten. Status: ${response.statusCode}';

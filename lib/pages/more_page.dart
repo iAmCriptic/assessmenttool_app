@@ -46,22 +46,20 @@ class MorePage extends StatelessWidget {
             icon: const Icon(Icons.logout),
             label: const Text('Abmelden'),
             onPressed: () async {
-              // Clear saved credentials on logout by calling a static method or a method on LoginPage.
-              // Since _clearCredentials is part of LoginPageState, we need a way to trigger it.
-              // A common and robust way is to make LoginPage responsible for clearing its own credentials,
-              // perhaps by passing a callback or using a GlobalKey, or by having LoginPage itself
-              // expose a static method if it manages global state, or by passing it via Navigator arguments
-              // or simply calling clear from SharedPreferences directly.
-              // For simplicity and directness, we will modify LoginPage to expose the clear function statically.
+              // Clear saved credentials on logout by calling a static method on LoginPage.
               await LoginPage.clearSavedCredentials();
-
 
               final Uri logoutUrl = Uri.parse('$serverAddress/api/logout');
               try {
                 final response = await http.get(logoutUrl);
                 if (response.statusCode == 200) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Erfolgreich abgemeldet.')),
+                    SnackBar(
+                      content: const Text('Erfolgreich abgemeldet.'),
+                      behavior: SnackBarBehavior.floating,
+                      margin: EdgeInsets.only(top: MediaQuery.of(context).padding.top + 10.0, left: 16.0, right: 16.0), // Positions it at the top
+                      duration: const Duration(seconds: 2),
+                    ),
                   );
                   // After logout, navigate back to the LoginPage
                   Navigator.pushReplacement(
@@ -70,12 +68,22 @@ class MorePage extends StatelessWidget {
                   );
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Fehler beim Abmelden. Status: ${response.statusCode}')),
+                    SnackBar(
+                      content: Text('Fehler beim Abmelden. Status: ${response.statusCode}'),
+                      behavior: SnackBarBehavior.floating,
+                      margin: EdgeInsets.only(top: MediaQuery.of(context).padding.top + 10.0, left: 16.0, right: 16.0), // Positions it at the top
+                      duration: const Duration(seconds: 2),
+                    ),
                   );
                 }
               } catch (e) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Verbindungsfehler beim Abmelden: $e')),
+                  SnackBar(
+                    content: Text('Verbindungsfehler beim Abmelden: $e'),
+                    behavior: SnackBarBehavior.floating,
+                    margin: EdgeInsets.only(top: MediaQuery.of(context).padding.top + 10.0, left: 16.0, right: 16.0), // Positions it at the top
+                    duration: const Duration(seconds: 2),
+                  ),
                 );
               }
             },

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-// Needed for logout in MorePage
+import 'package:http/http.dart' as http; // Needed for logout in MorePage
 
 import '../theme_manager.dart'; // Import ThemeNotifier
-// Import LoginPage for navigation
+import '../auth/login_page.dart'; // Import LoginPage for navigation
 import '../pages/start_page.dart'; // Import StartPage
 import '../pages/rooms_page.dart'; // Import RoomsPage
 import '../pages/warnings_page.dart'; // Import WarningsPage
@@ -43,36 +43,22 @@ class _HomePageState extends State<HomePage> {
     ];
   }
 
-  /// Helper function to build a navigation item (icon + label)
+  /// Helper function to build a navigation item (icon only)
   /// Used for "Start", "Räume", "Warnungen", "Mehr"
-  Widget _buildNavItem(BuildContext context, IconData icon, String label, int index) {
+  Widget _buildNavItem(BuildContext context, IconData icon, int index) {
     final bool isSelected = _selectedIndex == index;
     // Determine colors based on selected state and current theme brightness
     final Color iconColor = isSelected ? Colors.white : (Theme.of(context).brightness == Brightness.dark ? Colors.blue[100]! : Colors.blue[800]!);
-    final Color textColor = isSelected ? Colors.white : (Theme.of(context).brightness == Brightness.dark ? Colors.blue[100]! : Colors.blue[800]!);
 
     return Expanded(
       child: Material( // Use Material for ink splash effect
         color: Colors.transparent, // Make it transparent so the BottomAppBar color shines through
         child: InkWell( // For tap feedback
           onTap: () => _onItemTapped(index),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min, // Make column as small as possible
-              children: [
-                Icon(icon, color: iconColor),
-                const SizedBox(height: 4), // Small space between icon and text
-                Text(
-                  label,
-                  style: GoogleFonts.inter(
-                    color: textColor,
-                    fontSize: 12,
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                  ),
-                  overflow: TextOverflow.ellipsis, // Prevent text from overflowing
-                ),
-              ],
+          child: SizedBox( // Explicitly define size for the item to prevent overflow
+            height: kBottomNavigationBarHeight, // Use standard height
+            child: Center( // Center the icon within the SizedBox
+              child: Icon(icon, color: iconColor, size: 28), // Explicit icon size
             ),
           ),
         ),
@@ -93,6 +79,8 @@ class _HomePageState extends State<HomePage> {
     // Access ThemeNotifier
     final themeNotifier = Provider.of<ThemeNotifier>(context, listen: false);
 
+    final double appBarContentHeight = 60.0; 
+
     return Scaffold(
       // No AppBar here, as per user's request for HomePage
       body: _pages[_selectedIndex], // Display the selected page content
@@ -105,7 +93,12 @@ class _HomePageState extends State<HomePage> {
             _selectedIndex = 2; // Select the 'Bewerten' tab when FAB is pressed
           });
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Navigiere zur Bewertungsseite!')),
+            SnackBar(
+              content: const Text('Navigiere zur Bewertungsseite!'),
+              behavior: SnackBarBehavior.floating, // Makes the SnackBar floating
+              margin: EdgeInsets.only(top: MediaQuery.of(context).padding.top + 10.0, left: 16.0, right: 16.0), // Positions it at the top
+              duration: const Duration(seconds: 2), // Short display duration
+            ),
           );
           // TODO: Here could be the direct navigation to the evaluation page,
           // or a modal could be opened, depending on how you want to start the evaluation.
@@ -114,7 +107,7 @@ class _HomePageState extends State<HomePage> {
         foregroundColor: Colors.white,
         shape: const CircleBorder(), // Make it circular
         elevation: 8.0, // Add some shadow
-        child: const Icon(Icons.add), // Plus icon
+        child: const Icon(Icons.add, size: 28), // Plus icon, slightly larger
       ),
       bottomNavigationBar: BottomAppBar(
         shape: const CircularNotchedRectangle(), // Notch for the FAB
@@ -122,40 +115,23 @@ class _HomePageState extends State<HomePage> {
         // Match AppBar color - use theme's primary color or dark-specific color
         color: Theme.of(context).brightness == Brightness.dark ? Colors.blueGrey[900] : Theme.of(context).primaryColor, 
         elevation: 8.0,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: <Widget>[
-            _buildNavItem(context, Icons.home, 'Start', 0), // Start
-            _buildNavItem(context, Icons.meeting_room, 'Räume', 1), // Räume (New index 1)
-            
-            // Central placeholder for the FAB and its label
-            Expanded( // Use Expanded to give it proper spacing
-              child: InkWell( // Make this area tappable
-                onTap: () => _onItemTapped(2), // Tapping this area also selects 'Bewerten'
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8.0),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min, // Make column as small as possible
-                    children: [
-                      const SizedBox(height: 24), // Space for the FAB to float above
-                      Text(
-                        'Bewerten',
-                        style: GoogleFonts.inter(
-                          color: _selectedIndex == 2 ? Colors.white : (Theme.of(context).brightness == Brightness.dark ? Colors.blue[100]! : Colors.blue[800]!),
-                          fontSize: 12,
-                          fontWeight: _selectedIndex == 2 ? FontWeight.bold : FontWeight.normal,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
+        child: SizedBox( // Explicitly define the height for the content row
+          height: appBarContentHeight, // Apply the slightly larger height
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: <Widget>[
+              _buildNavItem(context, Icons.home, 0), // Start
+              _buildNavItem(context, Icons.meeting_room, 1), // Räume (New index 1)
+              
+              // Central placeholder for the FAB without any label
+              const Expanded( // Use Expanded to give it proper spacing
+                child: SizedBox(height: 1.0), // Minimal height for the expanded slot
               ),
-            ),
 
-            _buildNavItem(context, Icons.warning, 'Warnungen', 3), // Warnungen (New index 3)
-            _buildNavItem(context, Icons.more_horiz, 'Mehr', 4), // Mehr (New index 4)
-          ],
+              _buildNavItem(context, Icons.warning, 3), // Warnungen (New index 3)
+              _buildNavItem(context, Icons.more_horiz, 4), // Mehr (New index 4)
+            ],
+          ),
         ),
       ),
     );

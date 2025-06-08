@@ -44,7 +44,7 @@ class _HomePageState extends State<HomePage> {
       ), // 'Start' page
       RoomsPage(serverAddress: widget.serverAddress), // 'Räume' page - Corrected constructor
       EvaluationPage(serverAddress: widget.serverAddress), // NEW: 'Bewerten' page (index 2)
-      WarningsPage(), // 'Warnungen' page - Assuming it doesn't need serverAddress yet
+      WarningsPage(serverAddress: widget.serverAddress), // 'Warnungen' page - Assuming it doesn't need serverAddress yet
       MorePage(serverAddress: widget.serverAddress), // 'Mehr' page
     ];
   }

@@ -95,14 +95,14 @@ class _EvaluationPageState extends State<EvaluationPage> {
   Future<void> _loadSessionCookie() async {
     final prefs = await SharedPreferences.getInstance();
     _sessionCookie = prefs.getString('sessionCookie');
-    print('DEBUG (Flutter): EvaluationPage - Session cookie loaded: $_sessionCookie');
+    // print('DEBUG (Flutter): EvaluationPage - Session cookie loaded: $_sessionCookie'); // Debug removed
   }
 
   /// Loads the user's role from SharedPreferences.
   Future<void> _loadUserRole() async {
     final prefs = await SharedPreferences.getInstance();
     _userRole = prefs.getString('userRole');
-    print('DEBUG (Flutter): EvaluationPage - User role loaded: $_userRole');
+    // print('DEBUG (Flutter): EvaluationPage - User role loaded: $_userRole'); // Debug removed
   }
 
   /// Checks if the current user has any of the required roles.
@@ -131,13 +131,13 @@ class _EvaluationPageState extends State<EvaluationPage> {
 
     try {
       final headers = _getAuthHeaders();
-      print('DEBUG (Flutter): Fetching initial data from ${widget.serverAddress}/api/evaluate_initial_data with headers: $headers');
+      // print('DEBUG (Flutter): Fetching initial data from ${widget.serverAddress}/api/evaluate_initial_data with headers: $headers'); // Debug removed
       final response = await http.get(
         Uri.parse('${widget.serverAddress}/api/evaluate_initial_data'),
         headers: headers,
       );
-      print('DEBUG (Flutter): Initial data response status: ${response.statusCode}');
-      print('DEBUG (Flutter): Initial data response body: ${response.body}');
+      // print('DEBUG (Flutter): Initial data response status: ${response.statusCode}'); // Debug removed
+      // print('DEBUG (Flutter): Initial data response body: ${response.body}'); // Debug removed
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(response.body);
@@ -160,11 +160,11 @@ class _EvaluationPageState extends State<EvaluationPage> {
         }
       } else {
         _errorMessage = 'Fehler ${response.statusCode}: ${response.reasonPhrase}';
-        print('Error fetching initial data: ${response.statusCode} - ${response.body}');
+        // print('Error fetching initial data: ${response.statusCode} - ${response.body}'); // Debug removed
       }
     } catch (e) {
       _errorMessage = 'Verbindungsfehler: $e';
-      print('Exception fetching initial data: $e');
+      // print('Exception fetching initial data: $e'); // Debug removed
     } finally {
       setState(() {
         _isLoading = false;
@@ -180,13 +180,13 @@ class _EvaluationPageState extends State<EvaluationPage> {
     });
     try {
       final headers = _getAuthHeaders();
-      print('DEBUG (Flutter): Fetching existing scores for stand $standId from ${widget.serverAddress}/api/evaluations/user_scores/$standId with headers: $headers');
+      // print('DEBUG (Flutter): Fetching existing scores for stand $standId from ${widget.serverAddress}/api/evaluations/user_scores/$standId with headers: $headers'); // Debug removed
       final response = await http.get(
         Uri.parse('${widget.serverAddress}/api/evaluations/user_scores/$standId'),
         headers: headers,
       );
-      print('DEBUG (Flutter): Existing scores response status: ${response.statusCode}');
-      print('DEBUG (Flutter): Existing scores response body: ${response.body}');
+      // print('DEBUG (Flutter): Existing scores response status: ${response.statusCode}'); // Debug removed
+      // print('DEBUG (Flutter): Existing scores response body: ${response.body}'); // Debug removed
 
 
       if (response.statusCode == 200) {
@@ -203,7 +203,7 @@ class _EvaluationPageState extends State<EvaluationPage> {
             _criteria.forEach((criterion) {
               _scoreControllers[criterion.id]?.text = (_existingScores[criterion.id] ?? '').toString();
             });
-            print('DEBUG (Flutter): Loaded existing scores: $_existingScores');
+            // print('DEBUG (Flutter): Loaded existing scores: $_existingScores'); // Debug removed
           });
         } else {
           // No existing evaluation found for this stand
@@ -214,16 +214,16 @@ class _EvaluationPageState extends State<EvaluationPage> {
             _criteria.forEach((criterion) {
               _scoreControllers[criterion.id]?.clear();
             });
-            print('DEBUG (Flutter): No existing scores found for stand $standId.');
+            // print('DEBUG (Flutter): No existing scores found for stand $standId.'); // Debug removed
           });
         }
       } else {
         _errorMessage = 'Fehler beim Laden bestehender Bewertungen: ${response.statusCode} - ${response.reasonPhrase}';
-        print('Error fetching existing scores: ${response.statusCode} - ${response.body}');
+        // print('Error fetching existing scores: ${response.statusCode} - ${response.body}'); // Debug removed
       }
     } catch (e) {
       _errorMessage = 'Verbindungsfehler beim Laden bestehender Bewertungen: $e';
-      print('Exception fetching existing scores: $e');
+      // print('Exception fetching existing scores: $e'); // Debug removed
     } finally {
       setState(() {
         _isLoading = false;
@@ -257,8 +257,8 @@ class _EvaluationPageState extends State<EvaluationPage> {
       }
     });
 
-    print('DEBUG (Flutter): Submitting evaluation for stand ${_selectedStand!.id} with scores: $scoresToSubmit');
-    print('DEBUG (Flutter): Target URL: ${widget.serverAddress}/evaluate');
+    // print('DEBUG (Flutter): Submitting evaluation for stand ${_selectedStand!.id} with scores: $scoresToSubmit'); // Debug removed
+    // print('DEBUG (Flutter): Target URL: ${widget.serverAddress}/evaluate'); // Debug removed
 
     try {
       final headers = _getAuthHeaders();
@@ -270,8 +270,8 @@ class _EvaluationPageState extends State<EvaluationPage> {
           'scores': scoresToSubmit,
         }),
       );
-      print('DEBUG (Flutter): Submit evaluation response status: ${response.statusCode}');
-      print('DEBUG (Flutter): Submit evaluation response body: ${response.body}');
+      // print('DEBUG (Flutter): Submit evaluation response status: ${response.statusCode}'); // Debug removed
+      // print('DEBUG (Flutter): Submit evaluation response body: ${response.body}'); // Debug removed
 
 
       if (response.statusCode == 200) {
@@ -286,11 +286,11 @@ class _EvaluationPageState extends State<EvaluationPage> {
       } else {
         final Map<String, dynamic> errorData = json.decode(response.body);
         _showAlertDialog('Fehler', errorData['message'] ?? 'Ein Fehler ist aufgetreten. Status: ${response.statusCode}');
-        print('Error submitting evaluation: ${response.statusCode} - ${response.body}');
+        // print('Error submitting evaluation: ${response.statusCode} - ${response.body}'); // Debug removed
       }
     } catch (e) {
       _showAlertDialog('Verbindungsfehler', 'Fehler beim Senden der Bewertung: $e');
-      print('Exception submitting evaluation: $e');
+      // print('Exception submitting evaluation: $e'); // Debug removed
     } finally {
       setState(() {
         _isLoading = false;
@@ -489,6 +489,7 @@ class _EvaluationPageState extends State<EvaluationPage> {
               onChanged: (Stand? newValue) {
                 setState(() {
                   _selectedStand = newValue;
+                  // Debug removed: print('DEBUG (Flutter): Selected Stand Description: ${newValue?.description}');
                   // Clear controllers and existing scores when selecting a new stand
                   _existingScores.clear();
                   _lastEvaluationTimestamp = null;
@@ -506,7 +507,7 @@ class _EvaluationPageState extends State<EvaluationPage> {
 
             // Stand Description
             // Now directly uses _selectedStand.description if available
-            if (_selectedStand != null && _selectedStand!.description != null && _selectedStand!.description!.isNotEmpty)
+            if (_selectedStand != null && _selectedStand!.description != null && _selectedStand!.description!.trim().isNotEmpty)
               Card(
                 margin: EdgeInsets.zero, // Remove card margin to fit nicely
                 elevation: 2,
@@ -519,14 +520,14 @@ class _EvaluationPageState extends State<EvaluationPage> {
                     children: [
                       Text(
                         'Beschreibung:',
-                        style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16),
+                        style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16, color: Theme.of(context).textTheme.bodyLarge?.color), // Explicitly set color
                       ),
                       const SizedBox(height: 8),
                       // Use RichText to display stand description, if it also uses HTML
                       RichText( // Changed from Text to RichText
                         text: _parseSimpleHtmlToTextSpan(
                           _selectedStand!.description!,
-                          GoogleFonts.inter(fontSize: 14),
+                          GoogleFonts.inter(fontSize: 14, color: Theme.of(context).textTheme.bodyLarge?.color), // Explicitly set color
                         ),
                       ),
                     ],
@@ -534,7 +535,8 @@ class _EvaluationPageState extends State<EvaluationPage> {
                 ),
               ),
             // Updated condition for "No description available."
-            if (_selectedStand != null && (_selectedStand!.description == null || _selectedStand!.description!.isEmpty))
+            // This condition will now catch null, empty, or whitespace-only descriptions.
+            if (_selectedStand != null && (_selectedStand!.description == null || _selectedStand!.description!.trim().isEmpty))
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 10.0),
                 child: Text(
@@ -616,8 +618,7 @@ class _EvaluationPageState extends State<EvaluationPage> {
                 );
               },
             ),
-            // Removed SizedBox(height: 30) before Submit Button to pull it up
-            const SizedBox(height: 16), // Reduced space to pull button up
+            const SizedBox(height: 16),
 
             // Submit Button
             Center(
@@ -626,7 +627,7 @@ class _EvaluationPageState extends State<EvaluationPage> {
                 child: const Text('Bewertung speichern'),
               ),
             ),
-            const SizedBox(height: 16), // Add some padding at the bottom of the scroll view
+            const SizedBox(height: 16),
           ],
         ),
       ),

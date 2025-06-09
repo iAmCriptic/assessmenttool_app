@@ -32,7 +32,7 @@ class RoomInspection {
 
   factory RoomInspection.fromJson(Map<String, dynamic> json) {
     bool? cleanStatus;
-    // Check if 'is_clean' is present and convert to bool
+    // Check if 'is_clean' is present and convert to bool:
     // Backend sends 1 for true, 0 for false. If null, it means no inspection.
     if (json.containsKey('is_clean') && json['is_clean'] != null) {
       cleanStatus = json['is_clean'] == 1; 
@@ -77,7 +77,6 @@ class RoomsPage extends StatefulWidget {
 class _RoomsPageState extends State<RoomsPage> {
   String? _userRole; // Stores the current user's role
   String? _sessionCookie; 
-
   bool _isLoading = true;
   String? _errorMessage;
   List<RoomInspection> _roomInspections = [];
@@ -88,19 +87,16 @@ class _RoomsPageState extends State<RoomsPage> {
   Color _darkGradientColor1 = Colors.black; // Standard Dunkelmodus Startfarbe
   Color _darkGradientColor2 = Colors.blueGrey; // Standard Dunkelmodus Endfarbe
 
+  String? _logoFullPath; // Pfad zum Logo
+
   @override
   void initState() {
     super.initState();
     _loadSessionCookie().then((_) {
       _loadUserRole().then((_) { // Lade Benutzerrolle zuerst
-        // Daten nur abrufen, wenn der Benutzer Zugriffsrechte hat
-        if (_userHasRequiredRole(['Administrator', 'Inspektor'])) {
-          _fetchPageData(); // Ruft jetzt alle Daten ab (Inspektionen & Einstellungen)
-        } else {
-          setState(() {
-            _isLoading = false; // Ladevorgang beenden, wenn der Benutzer keinen Zugriff hat
-          });
-        }
+        // Ruft jetzt alle Daten ab (Inspektionen & Einstellungen), unabhängig von der Rolle
+        // Die Berechtigungsprüfung erfolgt innerhalb von _fetchPageData
+        _fetchPageData(); 
       });
     });
   }
@@ -158,20 +154,19 @@ class _RoomsPageState extends State<RoomsPage> {
       _errorMessage = null;
     });
 
-    if (!_userHasRequiredRole(['Administrator', 'Inspektor'])) {
-       setState(() {
-         _isLoading = false;
-         _errorMessage = 'Sie haben keine Berechtigung, auf diese Seite zuzugreifen.';
-       });
-       return;
-    }
-
     try {
       final headers = _getAuthHeaders();
 
       // Rufe beide Endpunkte gleichzeitig ab
-      final Future<http.Response> roomsFuture =
-          http.get(Uri.parse('${widget.serverAddress}/api/room_inspections'), headers: headers);
+      // Die API für Rauminspektionen wird nur aufgerufen, wenn der Benutzer die Berechtigung hat
+      Future<http.Response> roomsFuture;
+      if (_userHasRequiredRole(['Administrator', 'Inspektor'])) {
+        roomsFuture = http.get(Uri.parse('${widget.serverAddress}/api/room_inspections'), headers: headers);
+      } else {
+        // Wenn keine Berechtigung, einen Future mit leerer/fehlerhafter Antwort erstellen
+        roomsFuture = Future.value(http.Response('{"success": false, "message": "Keine Berechtigung"}', 403));
+      }
+      
       final Future<http.Response> adminSettingsFuture =
           http.get(Uri.parse('${widget.serverAddress}/api/admin_settings'), headers: headers);
 
@@ -192,12 +187,15 @@ class _RoomsPageState extends State<RoomsPage> {
         } else {
           _errorMessage = data['message'] ?? 'Fehler beim Laden der Rauminspektionen.';
         }
+      } else if (roomInspectionsResponse.statusCode == 403) {
+        // Explizite Behandlung für "Zugriff verweigert"
+        _errorMessage = 'Sie haben keine Berechtigung, auf diese Seite zuzugreifen.';
       } else {
         _errorMessage = 'Fehler ${roomInspectionsResponse.statusCode}: ${roomInspectionsResponse.reasonPhrase}';
         print('Error fetching room inspections: ${roomInspectionsResponse.statusCode} - ${roomInspectionsResponse.body}');
       }
 
-      // Verarbeitung der Admin-Einstellungen (für den Farbverlauf)
+      // Verarbeitung der Admin-Einstellungen (für den Farbverlauf und Logo)
       final adminSettingsResponse = responses[1];
       if (adminSettingsResponse.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(adminSettingsResponse.body);
@@ -207,10 +205,27 @@ class _RoomsPageState extends State<RoomsPage> {
             _gradientColor2 = _hexToColor(data['settings']['bg_gradient_color2'] ?? '#BBDEFB');
             _darkGradientColor1 = _hexToColor(data['settings']['dark_bg_gradient_color1'] ?? '#000000');
             _darkGradientColor2 = _hexToColor(data['settings']['dark_bg_gradient_color2'] ?? '#455A64');
+
+            // Logo-Pfad wie in MorePage laden
+            final String? logoPathFromBackend = data['settings']['logo_path'];
+            if (logoPathFromBackend != null && logoPathFromBackend.isNotEmpty) {
+              String serverAddress = widget.serverAddress;
+              String cleanedLogoPath = logoPathFromBackend;
+
+              if (serverAddress.endsWith('/')) {
+                serverAddress = serverAddress.substring(0, serverAddress.length - 1);
+              }
+              if (cleanedLogoPath.startsWith('/')) {
+                cleanedLogoPath = cleanedLogoPath.substring(1);
+              }
+              _logoFullPath = '$serverAddress/$cleanedLogoPath';
+            } else {
+              _logoFullPath = null; // No logo path provided
+            }
           });
         }
       } else {
-        print('Error fetching admin settings for gradient: ${adminSettingsResponse.statusCode}');
+        print('Error fetching admin settings for gradient and logo: ${adminSettingsResponse.statusCode}');
       }
 
     } catch (e) {
@@ -317,309 +332,282 @@ class _RoomsPageState extends State<RoomsPage> {
             end: Alignment.bottomRight,
           );
 
-    if (!_userHasRequiredRole(['Administrator', 'Inspektor'])) {
-      // Zugriff verweigert Meldung anzeigen
-      return Scaffold(
-        // Hintergrund transparent setzen, damit der Gradient durchscheint
-        backgroundColor: Colors.transparent, 
-        body: Stack( // Stack verwenden, um Hintergrund und Inhalt zu schichten
-          children: [
-            Positioned.fill(
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: backgroundGradient, // Den Farbverlauf anwenden
-                ),
-              ),
-            ),
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Überschrift
-                    Text(
-                      'Rauminspektionen',
-                      style: GoogleFonts.inter(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).textTheme.headlineLarge?.color,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 30),
-                    Icon(Icons.lock_outline, size: 60, color: Theme.of(context).disabledColor),
-                    const SizedBox(height: 20),
-                    Text(
-                      'Um hierdrauf zugreifen zu Können, brauchst du die Rolle Inspektor oder Administrator. Bei Bedarf kannst du diese beim Organisator erfragen.',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.inter(fontSize: 18, color: Theme.of(context).textTheme.bodyLarge?.color),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (_isLoading) {
-      return Scaffold(
-        // Hintergrund transparent setzen, damit der Gradient durchscheint
-        backgroundColor: Colors.transparent,
-        body: Stack(
-          children: [
-            Positioned.fill(
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: backgroundGradient,
-                ),
-              ),
-            ),
-            const Center(child: CircularProgressIndicator()),
-          ],
-        ),
-      );
-    }
-
-    if (_errorMessage != null) {
-      return Scaffold(
-        // Hintergrund transparent setzen, damit der Gradient durchscheint
-        backgroundColor: Colors.transparent,
-        body: Stack(
-          children: [
-            Positioned.fill(
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: backgroundGradient,
-                ),
-              ),
-            ),
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Überschrift
-                    Text(
-                      'Rauminspektionen',
-                      style: GoogleFonts.inter(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).textTheme.headlineLarge?.color,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 30),
-                    Icon(Icons.error_outline, color: Colors.red, size: 48),
-                    const SizedBox(height: 10),
-                    Text(
-                      _errorMessage!,
-                      style: GoogleFonts.inter(color: Colors.red, fontSize: 16),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 20),
-                    ElevatedButton(
-                      onPressed: _fetchPageData, // Gesamte Seitendaten neu laden
-                      child: const Text('Erneut versuchen'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
+    // Gemeinsamer Aufbau für alle Zustände (Zugriff verweigert, Ladezustand, Fehler, Inhalt)
     return Scaffold(
-      // Hintergrund transparent setzen, damit der Gradient durchscheint
       backgroundColor: Colors.transparent, 
-      body: Stack( // Stack verwenden, um Hintergrund und Inhalt zu schichten
+      body: Stack( 
         children: [
-          // Hintergrund-Gradient-Container (füllt den gesamten Scaffold-Body)
           Positioned.fill(
             child: Container(
               decoration: BoxDecoration(
-                gradient: backgroundGradient, // Den Farbverlauf anwenden
+                gradient: backgroundGradient, 
               ),
             ),
           ),
-          // Vordergrund-Inhalt (RefreshIndicator und SingleChildScrollView)
-          RefreshIndicator(
-            onRefresh: _fetchPageData, // Gesamte Seitendaten neu laden
-            child: LayoutBuilder( // LayoutBuilder verwenden, um Constraints zu erhalten
-              builder: (context, constraints) {
-                return SingleChildScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(), // Pull-to-Refresh immer erlauben
-                  padding: EdgeInsets.fromLTRB(
-                    16.0,
-                    16.0,
-                    16.0,
-                    // Angepasster Bottom-Padding für die BottomAppBar und System-Insets
-                    16.0 + MediaQuery.of(context).padding.bottom + kBottomNavigationBarHeight, 
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Überschrift
-                      Padding(
-                        padding: const EdgeInsets.only(top: 16.0, bottom: 16.0),
-                        child: Text(
-                          'Rauminspektionen',
-                          style: GoogleFonts.inter(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: Theme.of(context).textTheme.headlineLarge?.color,
-                          ),
-                          textAlign: TextAlign.left,
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-
-                      if (_roomInspections.isEmpty)
-                        Center(
-                          child: Text(
-                            'Keine Räume zur Inspektion gefunden.',
-                            style: GoogleFonts.inter(fontSize: 16, color: Colors.grey[600]),
-                          ),
-                        )
-                      else
-                        ListView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: _roomInspections.length,
-                          itemBuilder: (context, index) {
-                            final room = _roomInspections[index];
-                            
-                            // Zeitstempel formatieren, falls verfügbar
-                            String formattedInspectionTimestamp = 'N/A';
-                            if (room.inspectionTimestamp != null) {
-                              try {
-                                final DateTime parsedTimestamp = DateTime.parse(room.inspectionTimestamp!);
-                                formattedInspectionTimestamp = DateFormat('dd.MM.yyyy - HH:mm').format(parsedTimestamp.toLocal());
-                              } catch (e) {
-                                print('Error parsing inspection timestamp: $e');
-                                formattedInspectionTimestamp = 'Ungültiges Datum';
-                              }
-                            }
-
-                            return Card(
-                              margin: const EdgeInsets.only(bottom: 16.0),
-                              elevation: 4,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
-                              // Kartenhintergrund fest auf schwarz/weiß setzen
-                              color: isDarkMode ? Colors.black : Colors.white, 
-                              child: Padding(
-                                padding: const EdgeInsets.all(16.0),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      room.roomName,
-                                      style: GoogleFonts.inter(
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.bold,
-                                        color: Theme.of(context).textTheme.headlineMedium?.color,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      'Stände im Raum: ${room.standsInRoomCount}',
-                                      style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[600]),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Row(
-                                      children: [
-                                        Text(
-                                          'Status: ',
-                                          style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold),
-                                        ),
-                                        Text(
-                                          room.inspectionStatus,
-                                          style: GoogleFonts.inter(
-                                            fontSize: 14,
-                                            color: room.inspectionStatus == 'Sauber'
-                                                ? Colors.green
-                                                : (room.inspectionStatus == 'Nicht sauber' ? Colors.red : Colors.orange),
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    if (room.inspectionTimestamp != null) ...[
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        'Zuletzt inspiziert: $formattedInspectionTimestamp von ${room.lastInspectedBy}',
-                                        style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[500]),
-                                      ),
-                                    ],
-                                    const SizedBox(height: 16),
-                                    TextField(
-                                      controller: room.commentController, // Use the specific controller for this room
-                                      decoration: InputDecoration(
-                                        labelText: 'Kommentar',
-                                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                        isDense: true,
-                                      ),
-                                      maxLines: null, // Allow multiline input
-                                      style: GoogleFonts.inter(),
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceEvenly, // Distribute space evenly
-                                      children: [
-                                        Expanded(
-                                          child: ElevatedButton.icon(
-                                            onPressed: _isLoading ? null : () { // Disable button while loading
-                                              _updateRoomStatus(room, true, room.commentController.text);
-                                            },
-                                            icon: const Icon(Icons.check_circle_outline),
-                                            label: const Text('Sauber'),
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: Colors.green[600],
-                                              foregroundColor: Colors.white,
-                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                              textStyle: GoogleFonts.inter(fontSize: 14), // Smaller font size to fit
-                                              padding: const EdgeInsets.symmetric(vertical: 12), // Adjust padding
-                                              minimumSize: const Size.fromHeight(40), // Ensure minimum height to prevent squishing
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 10), // Space between buttons
-                                        Expanded(
-                                          child: ElevatedButton.icon(
-                                            onPressed: _isLoading ? null : () { // Disable button while loading
-                                              _updateRoomStatus(room, false, room.commentController.text);
-                                            },
-                                            icon: const Icon(Icons.cancel_outlined),
-                                            label: const Text('Nicht sauber'),
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: Colors.red[600],
-                                              foregroundColor: Colors.white,
-                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                              textStyle: GoogleFonts.inter(fontSize: 14), // Smaller font size to fit
-                                              padding: const EdgeInsets.symmetric(vertical: 12), // Adjust padding
-                                              minimumSize: const Size.fromHeight(40), // Ensure minimum height to prevent squishing
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
+          // Always display the header with logo
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: _buildHeaderWithLogo(context, 'Rauminspektionen'),
+          ),
+          // Conditional content based on loading, error, or access denied state
+          Padding(
+            padding: const EdgeInsets.only(top: 100.0), // Add padding to not overlap with the fixed header
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _errorMessage != null && _errorMessage == 'Sie haben keine Berechtigung, auf diese Seite zuzugreifen.'
+                    ? Center( // Zugriff verweigert Meldung
+                        child: Padding(
+                          padding: const EdgeInsets.all(20.0),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              // _buildHeaderWithLogo(context, 'Rauminspektionen'), // Header mit Logo -> moved out of here
+                              const SizedBox(height: 30),
+                              Icon(Icons.lock_outline, size: 60, color: Theme.of(context).disabledColor),
+                              const SizedBox(height: 20),
+                              Text(
+                                'Um hierdrauf zugreifen zu Können, brauchst du die Rolle Inspektor oder Administrator. Bei Bedarf kannst du diese beim Organisator erfragen.',
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.inter(fontSize: 18, color: Theme.of(context).textTheme.bodyLarge?.color),
                               ),
-                            );
-                          },
+                            ],
+                          ),
                         ),
-                    ],
-                  ),
-                );
-              }
+                      )
+                    : _errorMessage != null // Andere Fehlermeldungen
+                        ? Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(16.0),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  // _buildHeaderWithLogo(context, 'Rauminspektionen'), // Header mit Logo -> moved out of here
+                                  const SizedBox(height: 30),
+                                  Icon(Icons.error_outline, color: Colors.red, size: 48),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    _errorMessage!,
+                                    style: GoogleFonts.inter(color: Colors.red, fontSize: 16),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                  const SizedBox(height: 20),
+                                  ElevatedButton(
+                                    onPressed: _fetchPageData, 
+                                    child: const Text('Erneut versuchen'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        : RefreshIndicator( // Normaler Inhalt
+                            onRefresh: _fetchPageData, 
+                            child: LayoutBuilder(
+                              builder: (context, constraints) {
+                                return SingleChildScrollView(
+                                  physics: const AlwaysScrollableScrollPhysics(), 
+                                  padding: EdgeInsets.fromLTRB(
+                                    16.0,
+                                    16.0,
+                                    16.0,
+                                    16.0 + MediaQuery.of(context).padding.bottom + kBottomNavigationBarHeight, 
+                                  ),
+                                  child: ConstrainedBox(
+                                    constraints: BoxConstraints(
+                                      minHeight: constraints.maxHeight - (
+                                        kBottomNavigationBarHeight + MediaQuery.of(context).padding.bottom
+                                      ),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      mainAxisAlignment: MainAxisAlignment.start,
+                                      children: [
+                                        // _buildHeaderWithLogo(context, 'Rauminspektionen'), // Header mit Logo -> moved out of here
+                                        const SizedBox(height: 20),
+
+                                        if (_roomInspections.isEmpty)
+                                          Expanded( 
+                                            child: Center(
+                                              child: Text(
+                                                'Keine Räume zur Inspektion gefunden.',
+                                                style: GoogleFonts.inter(fontSize: 16, color: Colors.grey[600]),
+                                              ),
+                                            ),
+                                          )
+                                        else
+                                          ListView.builder(
+                                            shrinkWrap: true,
+                                            physics: const NeverScrollableScrollPhysics(),
+                                            itemCount: _roomInspections.length,
+                                            itemBuilder: (context, index) {
+                                              final room = _roomInspections[index];
+                                              
+                                              String formattedInspectionTimestamp = 'N/A';
+                                              if (room.inspectionTimestamp != null) {
+                                                try {
+                                                  final DateTime parsedTimestamp = DateTime.parse(room.inspectionTimestamp!);
+                                                  formattedInspectionTimestamp = DateFormat('dd.MM.yyyy - HH:mm').format(parsedTimestamp.toLocal());
+                                                } catch (e) {
+                                                  print('Error parsing inspection timestamp: $e');
+                                                  formattedInspectionTimestamp = 'Ungültiges Datum';
+                                                }
+                                              }
+
+                                              return Card(
+                                                margin: const EdgeInsets.only(bottom: 16.0),
+                                                elevation: 4,
+                                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
+                                                color: isDarkMode ? Colors.black : Colors.white, 
+                                                child: Padding(
+                                                  padding: const EdgeInsets.all(16.0),
+                                                  child: Column(
+                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    children: [
+                                                      Text(
+                                                        room.roomName,
+                                                        style: GoogleFonts.inter(
+                                                          fontSize: 20,
+                                                          fontWeight: FontWeight.bold,
+                                                          color: Theme.of(context).textTheme.headlineMedium?.color,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(height: 8),
+                                                      Text(
+                                                        'Stände im Raum: ${room.standsInRoomCount}',
+                                                        style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[600]),
+                                                      ),
+                                                      const SizedBox(height: 8),
+                                                      Row(
+                                                        children: [
+                                                          Text(
+                                                            'Status: ',
+                                                            style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold),
+                                                          ),
+                                                          Text(
+                                                            room.inspectionStatus,
+                                                            style: GoogleFonts.inter(
+                                                              fontSize: 14,
+                                                              color: room.inspectionStatus == 'Sauber'
+                                                                  ? Colors.green
+                                                                  : (room.inspectionStatus == 'Nicht sauber' ? Colors.red : Colors.orange),
+                                                              fontWeight: FontWeight.bold, 
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                      if (room.inspectionTimestamp != null) ...[
+                                                        const SizedBox(height: 8),
+                                                        Text(
+                                                          'Zuletzt inspiziert: $formattedInspectionTimestamp von ${room.lastInspectedBy}',
+                                                          style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[500]),
+                                                        ),
+                                                      ],
+                                                      const SizedBox(height: 16),
+                                                      TextField(
+                                                        controller: room.commentController, 
+                                                        decoration: InputDecoration(
+                                                          labelText: 'Kommentar',
+                                                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                                          isDense: true,
+                                                        ),
+                                                        maxLines: null, 
+                                                        style: GoogleFonts.inter(),
+                                                      ),
+                                                      const SizedBox(height: 16),
+                                                      Row(
+                                                        mainAxisAlignment: MainAxisAlignment.spaceEvenly, 
+                                                        children: [
+                                                          Expanded(
+                                                            child: ElevatedButton.icon(
+                                                              onPressed: _isLoading ? null : () { 
+                                                                _updateRoomStatus(room, true, room.commentController.text);
+                                                              },
+                                                              icon: const Icon(Icons.check_circle_outline),
+                                                              label: const Text('Sauber'),
+                                                              style: ElevatedButton.styleFrom(
+                                                                backgroundColor: Colors.green[600],
+                                                                foregroundColor: Colors.white,
+                                                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                                                textStyle: GoogleFonts.inter(fontSize: 14), 
+                                                                padding: const EdgeInsets.symmetric(vertical: 12), 
+                                                                minimumSize: const Size.fromHeight(40), 
+                                                              ),
+                                                            ),
+                                                          ),
+                                                          const SizedBox(width: 10), 
+                                                          Expanded(
+                                                            child: ElevatedButton.icon(
+                                                              onPressed: _isLoading ? null : () { 
+                                                                _updateRoomStatus(room, false, room.commentController.text);
+                                                              },
+                                                              icon: const Icon(Icons.cancel_outlined),
+                                                              label: const Text('Nicht sauber'),
+                                                              style: ElevatedButton.styleFrom(
+                                                                backgroundColor: Colors.red[600],
+                                                                foregroundColor: Colors.white,
+                                                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                                                textStyle: GoogleFonts.inter(fontSize: 14), 
+                                                                padding: const EdgeInsets.symmetric(vertical: 12), 
+                                                                minimumSize: const Size.fromHeight(40), 
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              );
+                                            }, 
+                                          ), 
+                                      ],
+                                    ), 
+                                  ), 
+                                ); 
+                              }
+                            ), 
+                          ), 
+          ),
+        ],
+      ), 
+    ); 
+  }
+
+  // Hilfs-Widget für den Header mit Titel und Logo
+  Widget _buildHeaderWithLogo(BuildContext context, String title) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0), // Added horizontal padding
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.center, // Vertikal zentrieren
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              style: GoogleFonts.inter(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).textTheme.headlineLarge?.color,
+              ),
+              textAlign: TextAlign.left,
             ),
           ),
+          if (_logoFullPath != null && _logoFullPath!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(left: 16.0),
+              child: Image.network(
+                _logoFullPath!,
+                height: 80,
+                width: 80,
+                fit: BoxFit.contain,
+                key: ValueKey(_logoFullPath),
+                errorBuilder: (context, error, stackTrace) =>
+                    Icon(Icons.business, size: 80, color: Theme.of(context).iconTheme.color),
+              ),
+            )
+          else
+            Icon(Icons.business, size: 80, color: Theme.of(context).iconTheme.color),
         ],
       ),
     );

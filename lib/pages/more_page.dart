@@ -30,7 +30,7 @@ class _MorePageState extends State<MorePage> {
   String? _userRole; // To store the current user's role
   bool _isLoadingRole = true;
   String? _logoFullPath; // Changed to _logoFullPath to match StartPage logic
-  String _frontendVersion = 'V1.1.13'; // Placeholder for frontend version
+  String _frontendVersion = 'V1.2.21'; // Placeholder for frontend version
   String _backendVersion = 'V 2.1.3'; // Placeholder for backend version
   String? _sessionCookie; // Hinzugefügt: Deklaration der _sessionCookie Variable
 
@@ -57,7 +57,7 @@ class _MorePageState extends State<MorePage> {
     _sessionCookie = prefs.getString('sessionCookie');
   }
 
-  /// Loads the user's role from SharedPreferences.
+  /// Loads the user's role from SharedPreferences and updates the state.
   Future<void> _loadUserRole() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
@@ -170,7 +170,7 @@ class _MorePageState extends State<MorePage> {
 
     return Scaffold(
       // Hintergrund transparent setzen, damit der Gradient durchscheint
-      backgroundColor: Colors.transparent, 
+      backgroundColor: Colors.transparent,
       body: Stack( // Stack verwenden, um Hintergrund und Inhalt zu schichten
         children: [
           // Hintergrund-Gradient-Container (füllt den gesamten Scaffold-Body)
@@ -185,58 +185,42 @@ class _MorePageState extends State<MorePage> {
           if (_isLoadingRole) // Initialer Ladezustand für die Rolle
             const Center(child: CircularProgressIndicator())
           else // Hauptinhalt, wenn geladen und autorisiert (oder nicht autorisiert)
-            LayoutBuilder( // LayoutBuilder verwenden, um Constraints zu erhalten
-              builder: (context, constraints) {
-                return SingleChildScrollView(
-                  padding: EdgeInsets.fromLTRB(
-                    16.0,
-                    16.0,
-                    16.0,
-                    // Angepasster Bottom-Padding für die BottomAppBar und System-Insets
-                    16.0 + MediaQuery.of(context).padding.bottom + kBottomNavigationBarHeight, 
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Custom Title "Weiteres" and Logo
-                      Padding(
-                        padding: const EdgeInsets.only(top: 16.0, bottom: 24.0),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'Weiteres',
-                              style: GoogleFonts.inter(
-                                fontSize: 28,
-                                fontWeight: FontWeight.bold,
-                                color: Theme.of(context).textTheme.headlineLarge?.color,
-                              ),
-                            ),
-                            // Dynamically loaded Logo
-                            if (_logoFullPath != null && _logoFullPath!.isNotEmpty) // Use _logoFullPath directly
-                              Image.network(
-                                _logoFullPath!, // Use the constructed full URL
-                                width: 50,
-                                height: 50,
-                                fit: BoxFit.contain, // Ensures image fits without cropping
-                                key: ValueKey(_logoFullPath), // Add ValueKey to force image reload
-                                errorBuilder: (context, error, stackTrace) {
-                                  print('DEBUG (MorePage): Image.network error for $_logoFullPath: $error, stack: $stackTrace'); // Debug print
-                                  return Container(
-                                    width: 50,
-                                    height: 50,
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey[300],
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Center(
-                                      child: Icon(Icons.business, size: 30, color: Colors.grey[700]),
-                                    ),
-                                  );
-                                },
-                              )
-                            else // Fallback if _logoFullPath is null or empty
-                              Container(
+            // Removed SingleChildScrollView around the whole content
+            Padding( // Padding hier, um den gesamten Inhalt zu verschieben
+              padding: EdgeInsets.fromLTRB(
+                16.0,
+                MediaQuery.of(context).padding.top + 16.0, // Top padding berücksichtigt Statusleiste
+                16.0,
+                MediaQuery.of(context).padding.bottom + kBottomNavigationBarHeight, // Bottom padding berücksichtigt BottomAppBar und System-Insets
+              ),
+              child: Column( // Äußerer Column für Spacer-Verwendung
+                crossAxisAlignment: CrossAxisAlignment.start, // Align content to start
+                children: [
+                  // Custom Title "Weiteres" and Logo
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 24.0), // Padding nur unten
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Weiteres',
+                          style: GoogleFonts.inter(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).textTheme.headlineLarge?.color,
+                          ),
+                        ),
+                        // Dynamically loaded Logo
+                        if (_logoFullPath != null && _logoFullPath!.isNotEmpty) // Use _logoFullPath directly
+                          Image.network(
+                            _logoFullPath!, // Use the constructed full URL
+                            width: 50,
+                            height: 50,
+                            fit: BoxFit.contain, // Ensures image fits without cropping
+                            key: ValueKey(_logoFullPath), // Add ValueKey to force image reload
+                            errorBuilder: (context, error, stackTrace) {
+                              print('DEBUG (MorePage): Image.network error for $_logoFullPath: $error, stack: $stackTrace'); // Debug print
+                              return Container(
                                 width: 50,
                                 height: 50,
                                 decoration: BoxDecoration(
@@ -246,227 +230,237 @@ class _MorePageState extends State<MorePage> {
                                 child: Center(
                                   child: Icon(Icons.business, size: 30, color: Colors.grey[700]),
                                 ),
-                              ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-
-                      // Management Options Section (only visible for Admin)
-                      if (this._isAdmin()) // Zeigt den Verwaltungsbereich nur für Admins an
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Verwaltung',
-                              style: GoogleFonts.inter(
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                                color: Theme.of(context).textTheme.headlineLarge?.color,
-                              ),
+                              );
+                            },
+                          )
+                        else // Fallback if _logoFullPath is null or empty
+                          Container(
+                            width: 50,
+                            height: 50,
+                            decoration: BoxDecoration(
+                              color: Colors.grey[300],
+                              borderRadius: BorderRadius.circular(8),
                             ),
-                            const SizedBox(height: 16),
-                            // Each management option is now its own Card
-                            _buildManagementTile(
-                              context,
-                              'Benutzer verwalten',
-                              icon: Icons.people_alt,
-                              isComingSoon: false, // Geändert auf false, da Seite existiert
-                              showOnlyAdmin: true, // Dies ist jetzt übergeordnet gesteuert
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(builder: (context) => ManageUsersPage(serverAddress: widget.serverAddress)),
-                                );
-                              },
-                            ),
-                            _buildManagementTile(
-                              context,
-                              'Stände verwalten',
-                              icon: Icons.store,
-                              isComingSoon: false, // Geändert auf false, da Seite existiert
-                              showOnlyAdmin: true,
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(builder: (context) => ManageStandsPage(serverAddress: widget.serverAddress)),
-                                );
-                              },
-                            ),
-                            _buildManagementTile(
-                              context,
-                              'Kriterien verwalten',
-                              icon: Icons.rule,
-                              isComingSoon: false, // Geändert auf false, da Seite existiert
-                              showOnlyAdmin: true,
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(builder: (context) => ManageCriteriaPage(serverAddress: widget.serverAddress)),
-                                );
-                              },
-                            ),
-                            _buildManagementTile(
-                              context,
-                              'Räume verwalten',
-                              icon: Icons.meeting_room,
-                              isComingSoon: false, // Geändert auf false, da Seite existiert
-                              showOnlyAdmin: true,
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(builder: (context) => ManageRoomsPage(serverAddress: widget.serverAddress)),
-                                );
-                              },
-                            ),
-                            _buildManagementTile(
-                              context,
-                              'Listen verwalten',
-                              icon: Icons.list_alt,
-                              isComingSoon: false, // Geändert auf false, da Seite existiert
-                              showOnlyAdmin: true,
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(builder: (context) => ManageListsPage(serverAddress: widget.serverAddress)),
-                                );
-                              },
-                            ),
-                            const SizedBox(height: 40), // More space before buttons
-                          ],
-                        ),
-
-                      // Logout and Darkmode Buttons (always visible)
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              icon: const Icon(Icons.logout),
-                              label: Text('Abmelden', style: GoogleFonts.inter(fontSize: 16)),
-                              onPressed: () async {
-                                await LoginPage.clearSavedCredentials();
-                                final Uri logoutUrl = Uri.parse('${widget.serverAddress}/api/logout');
-                                try {
-                                  final response = await http.get(logoutUrl);
-                                  if (response.statusCode == 200) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: const Text('Erfolgreich abgemeldet.'),
-                                        behavior: SnackBarBehavior.floating,
-                                        margin: EdgeInsets.only(top: MediaQuery.of(context).padding.top + 10.0, left: 16.0, right: 16.0),
-                                        duration: const Duration(seconds: 2),
-                                      ),
-                                    );
-                                    Navigator.pushReplacement(
-                                      context,
-                                      MaterialPageRoute(builder: (context) => const LoginPage()),
-                                    );
-                                  } else {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text('Fehler beim Abmelden. Status: ${response.statusCode}'),
-                                        behavior: SnackBarBehavior.floating,
-                                        margin: EdgeInsets.only(top: MediaQuery.of(context).padding.top + 10.0, left: 16.0, right: 16.0),
-                                        duration: const Duration(seconds: 2),
-                                      ),
-                                    );
-                                  }
-                                } catch (e) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text('Verbindungsfehler beim Abmelden: $e'),
-                                      behavior: SnackBarBehavior.floating,
-                                      margin: EdgeInsets.only(top: MediaQuery.of(context).padding.top + 10.0, left: 16.0, right: 16.0),
-                                      duration: const Duration(seconds: 2),
-                                    ),
-                                  );
-                                }
-                              },
-                              style: ElevatedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 15),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                backgroundColor: Colors.redAccent, // Make logout button distinct
-                                foregroundColor: Colors.white,
-                              ),
+                            child: Center(
+                              child: Icon(Icons.business, size: 30, color: Colors.grey[700]),
                             ),
                           ),
-                          const SizedBox(width: 16), // Space between buttons
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              icon: Icon(
-                                Theme.of(context).brightness == Brightness.dark
-                                    ? Icons.light_mode
-                                    : Icons.dark_mode,
-                              ),
-                              label: Text(
-                                Theme.of(context).brightness == Brightness.dark
-                                    ? 'Light Mode'
-                                    : 'Dark Mode',
-                                style: GoogleFonts.inter(fontSize: 16),
-                              ),
-                              onPressed: () {
-                                themeNotifier.toggleTheme();
-                              },
-                              style: ElevatedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 15),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                backgroundColor: isDarkMode ? Colors.blueGrey[700] : Colors.indigoAccent, // Different color for theme toggle
-                                foregroundColor: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
+                      ],
+                    ),
+                  ),
 
-                      // Version Information Section
-                      Align(
-                        alignment: Alignment.center,
-                        child: Card( // Added Card for background
-                          elevation: 2,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          color: isDarkMode 
-                              ? Colors.black.withOpacity(0.7) // Semi-transparent black for dark mode
-                              : Colors.white.withOpacity(0.7), // Semi-transparent white for light mode
-                          child: Padding(
-                            padding: const EdgeInsets.all(12.0), // Added padding inside the card
-                            child: Column(
-                              children: [
-                                Text(
-                                  'Erstellt von Enrico R. Matzke',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 14, 
-                                    color: isDarkMode ? Colors.white70 : Colors.black87, // Adjusted text color for readability
+                  // Management Options Section (only visible for Admin)
+                  if (this._isAdmin()) // Zeigt den Verwaltungsbereich nur für Admins an
+                    // Removed Expanded and SingleChildScrollView here
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Verwaltung',
+                          style: GoogleFonts.inter(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).textTheme.headlineLarge?.color,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        // Each management option is now its own Card
+                        _buildManagementTile(
+                          context,
+                          'Benutzer verwalten',
+                          icon: Icons.people_alt,
+                          isComingSoon: false,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => ManageUsersPage(serverAddress: widget.serverAddress)),
+                            );
+                          },
+                        ),
+                        _buildManagementTile(
+                          context,
+                          'Stände verwalten',
+                          icon: Icons.store,
+                          isComingSoon: false,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => ManageStandsPage(serverAddress: widget.serverAddress)),
+                            );
+                          },
+                        ),
+                        _buildManagementTile(
+                          context,
+                          'Kriterien verwalten',
+                          icon: Icons.rule,
+                          isComingSoon: false,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => ManageCriteriaPage(serverAddress: widget.serverAddress)),
+                            );
+                          },
+                        ),
+                        _buildManagementTile(
+                          context,
+                          'Räume verwalten',
+                          icon: Icons.meeting_room,
+                          isComingSoon: false,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => ManageRoomsPage(serverAddress: widget.serverAddress)),
+                            );
+                          },
+                        ),
+                        _buildManagementTile(
+                          context,
+                          'Listen verwalten',
+                          icon: Icons.list_alt,
+                          isComingSoon: false,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => ManageListsPage(serverAddress: widget.serverAddress)),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 20), // Reduced space here, Spacer will handle the rest
+                      ],
+                    ),
+                  // No 'else' block with an Expanded Container, so if not admin, nothing occupies that space
+
+                  // Spacer, der den verbleibenden vertikalen Platz einnimmt
+                  Spacer(), // Hinzugefügt: Dieser Spacer drückt die folgenden Widgets nach unten
+
+                  // Logout and Darkmode Buttons (always visible at the bottom)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          icon: const Icon(Icons.logout),
+                          label: Text('Abmelden', style: GoogleFonts.inter(fontSize: 16)),
+                          onPressed: () async {
+                            await LoginPage.clearSavedCredentials();
+                            final Uri logoutUrl = Uri.parse('${widget.serverAddress}/api/logout');
+                            try {
+                              final response = await http.get(logoutUrl, headers: {'Cookie': _sessionCookie ?? ''}); // Cookie senden
+                              if (response.statusCode == 200) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: const Text('Erfolgreich abgemeldet.'),
+                                    behavior: SnackBarBehavior.floating,
+                                    margin: EdgeInsets.only(top: MediaQuery.of(context).padding.top + 10.0, left: 16.0, right: 16.0),
+                                    duration: const Duration(seconds: 2),
                                   ),
-                                  textAlign: TextAlign.center,
-                                ),
-                                Text(
-                                  'Frontend version: $_frontendVersion',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 14, 
-                                    color: isDarkMode ? Colors.white70 : Colors.black87, // Adjusted text color for readability
+                                );
+                                Navigator.pushReplacement(
+                                  context,
+                                  MaterialPageRoute(builder: (context) => const LoginPage()),
+                                );
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Fehler beim Abmelden. Status: ${response.statusCode}'),
+                                    behavior: SnackBarBehavior.floating,
+                                    margin: EdgeInsets.only(top: MediaQuery.of(context).padding.top + 10.0, left: 16.0, right: 16.0),
+                                    duration: const Duration(seconds: 2),
                                   ),
-                                  textAlign: TextAlign.center,
+                                );
+                              }
+                            } catch (e) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Verbindungsfehler beim Abmelden: $e'),
+                                  behavior: SnackBarBehavior.floating,
+                                  margin: EdgeInsets.only(top: MediaQuery.of(context).padding.top + 10.0, left: 16.0, right: 16.0),
+                                  duration: const Duration(seconds: 2),
                                 ),
-                                Text(
-                                  'Backend version: $_backendVersion',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 14, 
-                                    color: isDarkMode ? Colors.white70 : Colors.black87, // Adjusted text color for readability
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ],
-                            ),
+                              );
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 15),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            backgroundColor: Colors.redAccent, // Make logout button distinct
+                            foregroundColor: Colors.white,
                           ),
                         ),
                       ),
-                      const SizedBox(height: 20), // Space above bottom nav bar (if any)
+                      const SizedBox(width: 16), // Space between buttons
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          icon: Icon(
+                            Theme.of(context).brightness == Brightness.dark
+                                ? Icons.light_mode
+                                : Icons.dark_mode,
+                          ),
+                          label: Text(
+                            Theme.of(context).brightness == Brightness.dark
+                                ? 'Light Mode'
+                                : 'Dark Mode',
+                            style: GoogleFonts.inter(fontSize: 16),
+                          ),
+                          onPressed: () {
+                            themeNotifier.toggleTheme();
+                          },
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 15),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            backgroundColor: isDarkMode ? Colors.blueGrey[700] : Colors.indigoAccent, // Different color for theme toggle
+                            foregroundColor: Colors.white,
+                          ),
+                        ),
+                      ),
                     ],
                   ),
-                );
-              }
+                  const SizedBox(height: 20),
+
+                  // Version Information Section
+                  Align(
+                    alignment: Alignment.center,
+                    child: Card( // Added Card for background
+                      elevation: 2,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      color: isDarkMode
+                          ? Colors.black.withOpacity(0.7) // Semi-transparent black for dark mode
+                          : Colors.white.withOpacity(0.7), // Semi-transparent white for light mode
+                      child: Padding(
+                        padding: const EdgeInsets.all(12.0), // Added padding inside the card
+                        child: Column(
+                          children: [
+                            Text(
+                              'Erstellt von Enrico R. Matzke',
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                color: isDarkMode ? Colors.white70 : Colors.black87, // Adjusted text color for readability
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            Text(
+                              'Frontend version: $_frontendVersion',
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                color: isDarkMode ? Colors.white70 : Colors.black87, // Adjusted text color for readability
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            Text(
+                              'Backend version: $_backendVersion',
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                color: isDarkMode ? Colors.white70 : Colors.black87, // Adjusted text color for readability
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
         ],
       ),
@@ -479,13 +473,8 @@ class _MorePageState extends State<MorePage> {
     String title, {
     IconData? icon,
     bool isComingSoon = false,
-    bool showOnlyAdmin = false, // This parameter is now redundant for the admin check within this widget
     VoidCallback? onTap, // Added onTap callback
   }) {
-    // The main admin check is now in the build method itself for the whole section.
-    // This internal check can be removed or used for more granular control if needed later.
-    // For now, it's sufficient to keep it as a general helper for tiles.
-
     final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
     return Padding(
@@ -501,7 +490,7 @@ class _MorePageState extends State<MorePage> {
             style: GoogleFonts.inter(
               fontSize: 18,
               fontWeight: FontWeight.w500,
-              color: isComingSoon && !_isAdmin() ? Colors.grey : Theme.of(context).textTheme.bodyLarge?.color,
+              color: isComingSoon ? Colors.grey : Theme.of(context).textTheme.bodyLarge?.color,
             ),
           ),
           trailing: isComingSoon

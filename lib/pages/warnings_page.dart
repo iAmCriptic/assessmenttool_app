@@ -90,6 +90,7 @@ class WarningsPage extends StatefulWidget {
 class _WarningsPageState extends State<WarningsPage> {
   String? _userRole;
   String? _sessionCookie;
+  String? _logoFullPath; // Added for the logo
 
   bool _isLoading = true;
   String? _errorMessage;
@@ -112,14 +113,8 @@ class _WarningsPageState extends State<WarningsPage> {
     super.initState();
     _loadSessionCookie().then((_) {
       _loadUserRole().then((_) {
-        // Rufe Daten nur ab, wenn der Benutzer Zugriffsrechte hat
-        if (_userHasRequiredRole(['Administrator', 'Verwarner'])) {
-          _fetchPageData(); // Ruft jetzt alle Daten ab (Verwarnungen & Einstellungen)
-        } else {
-          setState(() {
-            _isLoading = false; // Ladevorgang beenden, wenn der Benutzer keinen Zugriff hat
-          });
-        }
+        // Always fetch admin settings for gradient and logo
+        _fetchPageData(fetchWarnings: _userHasRequiredRole(['Administrator', 'Verwarner']));
       });
     });
   }
@@ -167,9 +162,8 @@ class _WarningsPageState extends State<WarningsPage> {
     return Color(int.parse('ff$hex', radix: 16));
   }
 
-
   /// Fetches all necessary data for the page (warnings and app settings).
-  Future<void> _fetchPageData() async {
+  Future<void> _fetchPageData({bool fetchWarnings = true}) async {
     await _loadUserRole(); // Ensure role is up-to-date
 
     setState(() {
@@ -177,20 +171,13 @@ class _WarningsPageState extends State<WarningsPage> {
       _errorMessage = null;
     });
 
-    if (!_userHasRequiredRole(['Administrator', 'Verwarner'])) {
-      setState(() {
-        _isLoading = false;
-        _errorMessage = 'Sie haben keine Berechtigung, auf diese Seite zuzugreifen.';
-      });
-      return;
-    }
-
     try {
       final headers = _getAuthHeaders();
 
-      // Rufe beide Endpunkte gleichzeitig ab
-      final Future<http.Response> warningsFuture =
-          http.get(Uri.parse('${widget.serverAddress}/warnings/api/warnings_data'), headers: headers);
+      final Future<http.Response> warningsFuture = fetchWarnings
+          ? http.get(Uri.parse('${widget.serverAddress}/warnings/api/warnings_data'), headers: headers)
+          : Future.value(http.Response('{"success": false, "message": "Keine Berechtigung"}', 403)); // Dummy response
+
       final Future<http.Response> adminSettingsFuture =
           http.get(Uri.parse('${widget.serverAddress}/api/admin_settings'), headers: headers);
 
@@ -223,12 +210,14 @@ class _WarningsPageState extends State<WarningsPage> {
         } else {
           _errorMessage = data['message'] ?? 'Fehler beim Laden der Verwarnungsdaten.';
         }
+      } else if (warningsResponse.statusCode == 403) {
+        _errorMessage = 'Sie haben keine Berechtigung, auf diese Seite zuzugreifen.';
       } else {
         _errorMessage = 'Fehler ${warningsResponse.statusCode}: ${warningsResponse.reasonPhrase}';
         print('Error fetching warnings data: ${warningsResponse.statusCode} - ${warningsResponse.body}');
       }
 
-      // Verarbeitung der Admin-Einstellungen (für den Farbverlauf)
+      // Verarbeitung der Admin-Einstellungen (für den Farbverlauf und Logo)
       final adminSettingsResponse = responses[1];
       if (adminSettingsResponse.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(adminSettingsResponse.body);
@@ -238,10 +227,29 @@ class _WarningsPageState extends State<WarningsPage> {
             _gradientColor2 = _hexToColor(data['settings']['bg_gradient_color2'] ?? '#BBDEFB');
             _darkGradientColor1 = _hexToColor(data['settings']['dark_bg_gradient_color1'] ?? '#000000');
             _darkGradientColor2 = _hexToColor(data['settings']['dark_bg_gradient_color2'] ?? '#455A64');
+
+            final String? logoPathFromBackend = data['settings']['logo_path'];
+            if (logoPathFromBackend != null && logoPathFromBackend.isNotEmpty) {
+              if (logoPathFromBackend.startsWith('http://') || logoPathFromBackend.startsWith('https://')) {
+                _logoFullPath = logoPathFromBackend;
+              } else {
+                String serverAddress = widget.serverAddress;
+                String cleanedLogoPath = logoPathFromBackend;
+                if (serverAddress.endsWith('/')) {
+                  serverAddress = serverAddress.substring(0, serverAddress.length - 1);
+                }
+                if (cleanedLogoPath.startsWith('/')) {
+                  cleanedLogoPath = cleanedLogoPath.substring(1);
+                }
+                _logoFullPath = '$serverAddress/$cleanedLogoPath';
+              }
+            } else {
+              _logoFullPath = null;
+            }
           });
         }
       } else {
-        print('Error fetching admin settings for gradient: ${adminSettingsResponse.statusCode}');
+        print('Error fetching admin settings for gradient and logo: ${adminSettingsResponse.statusCode}');
       }
 
     } catch (e) {
@@ -422,6 +430,45 @@ class _WarningsPageState extends State<WarningsPage> {
     );
   }
 
+  // Helper widget for the header with title and logo
+  Widget _buildHeaderWithLogo(BuildContext context, String title) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0), // Added horizontal padding
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.center, // Vertically center
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              style: GoogleFonts.inter(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).textTheme.headlineLarge?.color,
+              ),
+              textAlign: TextAlign.left,
+            ),
+          ),
+          if (_logoFullPath != null && _logoFullPath!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(left: 16.0),
+              child: Image.network(
+                _logoFullPath!,
+                height: 80, // Larger logo size
+                width: 80,  // Larger logo size
+                fit: BoxFit.contain,
+                key: ValueKey(_logoFullPath),
+                errorBuilder: (context, error, stackTrace) =>
+                    Icon(Icons.business, size: 80, color: Theme.of(context).iconTheme.color), // Icon size matches
+              ),
+            )
+          else
+            Icon(Icons.business, size: 80, color: Theme.of(context).iconTheme.color),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
@@ -440,398 +487,330 @@ class _WarningsPageState extends State<WarningsPage> {
           );
 
 
-    if (!_userHasRequiredRole(['Administrator', 'Verwarner'])) {
-      return Scaffold(
-        // Hintergrund transparent setzen, damit der Gradient durchscheint
-        backgroundColor: Colors.transparent, 
-        body: Stack( // Stack verwenden, um Hintergrund und Inhalt zu schichten
-          children: [
-            Positioned.fill(
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: backgroundGradient, // Den Farbverlauf anwenden
-                ),
-              ),
-            ),
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      'Verwarnungen',
-                      style: GoogleFonts.inter(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).textTheme.headlineLarge?.color,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 30),
-                    Icon(Icons.lock_outline, size: 60, color: Theme.of(context).disabledColor),
-                    const SizedBox(height: 20),
-                    Text(
-                      'Um hierdrauf zugreifen zu Können, brauchst du die Rolle Verwarner oder Administrator. Bei Bedarf kannst du diese beim Organisator erfragen.',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.inter(fontSize: 18, color: Theme.of(context).textTheme.bodyLarge?.color),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (_isLoading) {
-      return Scaffold(
-        // Hintergrund transparent setzen, damit der Gradient durchscheint
-        backgroundColor: Colors.transparent,
-        body: Stack(
-          children: [
-            Positioned.fill(
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: backgroundGradient,
-                ),
-              ),
-            ),
-            const Center(child: CircularProgressIndicator()),
-          ],
-        ),
-      );
-    }
-
-    if (_errorMessage != null) {
-      return Scaffold(
-        // Hintergrund transparent setzen, damit der Gradient durchscheint
-        backgroundColor: Colors.transparent,
-        body: Stack(
-          children: [
-            Positioned.fill(
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: backgroundGradient,
-                ),
-              ),
-            ),
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      'Verwarnungen',
-                      style: GoogleFonts.inter(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).textTheme.headlineLarge?.color,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 30),
-                    Icon(Icons.error_outline, color: Colors.red, size: 48),
-                    const SizedBox(height: 10),
-                    Text(
-                      _errorMessage!,
-                      style: GoogleFonts.inter(color: Colors.red, fontSize: 16),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 20),
-                    ElevatedButton(
-                      onPressed: _fetchPageData,
-                      child: const Text('Erneut versuchen'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
     return Scaffold(
-      // Hintergrund transparent setzen, damit der Gradient durchscheint
+      extendBodyBehindAppBar: true, 
       backgroundColor: Colors.transparent, 
-      body: Stack( // Stack verwenden, um Hintergrund und Inhalt zu schichten
+      body: Stack( 
         children: [
-          // Hintergrund-Gradient-Container (füllt den gesamten Scaffold-Body)
           Positioned.fill(
             child: Container(
               decoration: BoxDecoration(
-                gradient: backgroundGradient, // Den Farbverlauf anwenden
+                gradient: backgroundGradient, 
               ),
             ),
           ),
-          // Vordergrund-Inhalt (RefreshIndicator und SingleChildScrollView)
-          RefreshIndicator(
-            onRefresh: _fetchPageData,
-            child: LayoutBuilder( // LayoutBuilder verwenden, um Constraints zu erhalten
-              builder: (context, constraints) {
-                return SingleChildScrollView(
-                  padding: EdgeInsets.fromLTRB(
-                    16.0,
-                    16.0,
-                    16.0,
-                    // Angepasster Bottom-Padding für die BottomAppBar und System-Insets
-                    16.0 + MediaQuery.of(context).padding.bottom + kBottomNavigationBarHeight, 
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Custom Title and Back Button
-                      Padding(
-                        padding: const EdgeInsets.only(top: 16.0, bottom: 16.0),
-                        child: Text( 
-                          'Verwarnungen',
-                          style: GoogleFonts.inter(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: Theme.of(context).textTheme.headlineLarge?.color,
-                          ),
-                          textAlign: TextAlign.left,
+          // Header (Titel und Logo)
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: _buildHeaderWithLogo(context, 'Verwarnungen'), // Use the common header widget
+          ),
+          // Main content area, pushed down to clear the header
+          Padding(
+            padding: const EdgeInsets.only(top: 110.0, left: 20.0, right: 20.0), // Consistent top padding for all main content
+            child: SafeArea( // Ensure content is within safe area
+              child: !_userHasRequiredRole(['Administrator', 'Verwarner'])
+                  ? // User DOES NOT have required role (Access Denied)
+                    Column(
+                      mainAxisAlignment: MainAxisAlignment.center, // Vertically center the content
+                      children: [
+                        Icon(Icons.lock_outline, size: 60, color: Theme.of(context).disabledColor),
+                        const SizedBox(height: 20),
+                        Text(
+                          'Um hierdrauf zugreifen zu Können, brauchst du die Rolle Verwarner oder Administrator. Bei Bedarf kannst du diese beim Organisator erfragen.',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.inter(fontSize: 18, color: Theme.of(context).textTheme.bodyLarge?.color),
                         ),
-                      ),
-                      const SizedBox(height: 20),
-
-                      // Section for adding new warning
-                      Card(
-                        margin: const EdgeInsets.only(bottom: 24.0),
-                        elevation: 4,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
-                        color: isDarkMode ? Colors.black : Colors.white, // Hintergrundfarbe der Karte
-                        child: Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Neue Verwarnung hinzufügen',
-                                style: GoogleFonts.inter(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                  color: Theme.of(context).textTheme.headlineMedium?.color,
+                      ],
+                    )
+                  : // User HAS required role (proceed with loading/error/main content)
+                    _isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : _errorMessage != null
+                          ? Column(
+                              mainAxisAlignment: MainAxisAlignment.center, // Vertically center the content
+                              children: [
+                                Icon(Icons.error_outline, color: Colors.red, size: 48),
+                                const SizedBox(height: 10),
+                                Text(
+                                  _errorMessage!,
+                                  style: GoogleFonts.inter(color: Colors.red, fontSize: 16),
+                                  textAlign: TextAlign.center,
                                 ),
-                              ),
-                              const SizedBox(height: 16),
-                              DropdownButtonFormField<StandForDropdown>(
-                                value: _selectedStandForNewWarning,
-                                decoration: InputDecoration(
-                                  labelText: 'Stand auswählen:',
-                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                                const SizedBox(height: 20),
+                                ElevatedButton(
+                                  onPressed: () => _fetchPageData(fetchWarnings: true), // Re-fetch all data on retry
+                                  child: const Text('Erneut versuchen'),
                                 ),
-                                hint: Text('Bitte Stand auswählen', style: GoogleFonts.inter()),
-                                isExpanded: true,
-                                items: _standsForDropdown.map((stand) {
-                                  return DropdownMenuItem<StandForDropdown>(
-                                    value: stand,
-                                    child: Text(stand.name, style: GoogleFonts.inter()),
-                                  );
-                                }).toList(),
-                                onChanged: (StandForDropdown? newValue) {
-                                  setState(() {
-                                    _selectedStandForNewWarning = newValue;
-                                  });
-                                },
-                              ),
-                              const SizedBox(height: 16),
-                              TextField(
-                                controller: _newWarningCommentController,
-                                decoration: InputDecoration(
-                                  labelText: 'Kommentar für die Verwarnung',
-                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                  isDense: true,
-                                ),
-                                maxLines: 3,
-                                style: GoogleFonts.inter(),
-                              ),
-                              const SizedBox(height: 16),
-                              Center(
-                                child: ElevatedButton(
-                                  onPressed: _isLoading ? null : _submitNewWarning,
-                                  child: const Text('Verwarnung hinzufügen'),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-
-                      // Section for all warnings
-                      Text(
-                        'Alle Verwarnungen',
-                        style: GoogleFonts.inter(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).textTheme.headlineLarge?.color,
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-
-                      if (_groupedWarnings.isEmpty)
-                        Center(
-                          child: Text(
-                            'Keine Verwarnungen gefunden.',
-                            style: GoogleFonts.inter(fontSize: 16, color: Colors.grey[600]),
-                          ),
-                        )
-                      else
-                        ListView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: _groupedWarnings.length,
-                          itemBuilder: (context, index) {
-                            final groupedWarning = _groupedWarnings[index];
-                            return Card(
-                              margin: const EdgeInsets.only(bottom: 16.0),
-                              elevation: 4,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
-                              color: isDarkMode ? Colors.black : Colors.white, // Hintergrundfarbe der Karte
-                              child: Padding(
-                                padding: const EdgeInsets.all(16.0),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      '${groupedWarning.standName} (${groupedWarning.totalWarnings} gültige Verwarnungen)',
-                                      style: GoogleFonts.inter(
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.bold,
-                                        color: Theme.of(context).textTheme.headlineMedium?.color,
-                                      ),
+                              ],
+                            )
+                          : LayoutBuilder( // Hinzugefügter LayoutBuilder
+                              builder: (context, constraints) {
+                                return SingleChildScrollView( // Main content if user has role and no error
+                                  child: ConstrainedBox( // Hinzugefügte ConstrainedBox
+                                    constraints: BoxConstraints(
+                                      minHeight: constraints.maxHeight - 100.0, // Mindesthöhe = Bildschirmhöhe - Headerhöhe - Padding
                                     ),
-                                    const SizedBox(height: 16),
-                                    // List individual warnings for this stand
-                                    if (groupedWarning.warnings.isEmpty)
-                                      Padding(
-                                        padding: const EdgeInsets.only(left: 8.0),
-                                        child: Text(
-                                          'Keine spezifischen Verwarnungen.',
-                                          style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[600]),
-                                        ),
-                                      )
-                                    else
-                                      ...groupedWarning.warnings.map((warning) {
-                                        // Format the warning timestamp
-                                        String formattedTimestamp = 'N/A';
-                                        try {
-                                          final DateTime parsedTimestamp = DateTime.parse(warning.timestamp);
-                                          formattedTimestamp = DateFormat('dd.MM.yyyy - HH:mm').format(parsedTimestamp.toLocal()); // Corrected format
-                                        } catch (e) {
-                                          print('Error parsing warning timestamp: $e');
-                                          formattedTimestamp = 'Ungültiges Datum';
-                                        }
-
-                                        // Format the invalidation timestamp
-                                        String formattedInvalidationTimestamp = 'N/A';
-                                        if (warning.invalidationTimestamp != null) {
-                                          try {
-                                            final DateTime parsedInvalidationTimestamp = DateTime.parse(warning.invalidationTimestamp!);
-                                            formattedInvalidationTimestamp = DateFormat('dd.MM.yyyy - HH:mm').format(parsedInvalidationTimestamp.toLocal()); // Corrected format
-                                          } catch (e) {
-                                            print('Error parsing invalidation timestamp: $e');
-                                            formattedInvalidationTimestamp = 'Ungültiges Datum';
-                                          }
-                                        }
-
-
-                                        return Padding(
-                                          padding: const EdgeInsets.only(left: 8.0, bottom: 8.0),
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Row(
-                                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                                children: [
-                                                  Expanded(
-                                                    child: Text(
-                                                      'Verwarner: ${warning.warnerName} am $formattedTimestamp', // Use formattedTimestamp
-                                                      style: GoogleFonts.inter(
-                                                        fontSize: 14,
-                                                        fontWeight: FontWeight.w600,
-                                                        color: warning.isInvalidated ? Colors.grey : Theme.of(context).textTheme.bodyLarge?.color,
-                                                      ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        // Section for adding new warning
+                                        Card(
+                                          margin: const EdgeInsets.only(bottom: 24.0),
+                                          elevation: 4,
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
+                                          color: isDarkMode ? Colors.black : Colors.white, // Hintergrundfarbe der Karte
+                                          child: Padding(
+                                            padding: const EdgeInsets.all(16.0),
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  'Neue Verwarnung hinzufügen',
+                                                  style: GoogleFonts.inter(
+                                                    fontSize: 20,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Theme.of(context).textTheme.headlineMedium?.color,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 16),
+                                                DropdownButtonFormField<StandForDropdown>(
+                                                  value: _selectedStandForNewWarning,
+                                                  decoration: InputDecoration(
+                                                    labelText: 'Stand auswählen:',
+                                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                                                    filled: true,
+                                                    fillColor: isDarkMode
+                                                        ? Colors.black.withOpacity(0.7)
+                                                        : Colors.white.withOpacity(0.7),
+                                                    labelStyle: GoogleFonts.inter(
+                                                      color: isDarkMode ? Colors.white70 : Colors.black87,
+                                                    ),
+                                                    hintStyle: GoogleFonts.inter(
+                                                      color: isDarkMode ? Colors.white54 : Colors.black54,
                                                     ),
                                                   ),
-                                                  if (warning.isInvalidated)
-                                                    Icon(Icons.check_circle_outline, color: Colors.grey, size: 18),
-                                                  if (!warning.isInvalidated && _userHasRequiredRole(['Administrator', 'Verwarner']))
-                                                    PopupMenuButton<String>(
-                                                      onSelected: (String result) {
-                                                        if (result == 'invalidate') {
-                                                          _showInvalidateWarningDialog(warning);
-                                                        }
-                                                      },
-                                                      itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-                                                        PopupMenuItem<String>(
-                                                          value: 'invalidate',
-                                                          child: Text('Ungültig machen', style: GoogleFonts.inter()),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  if (warning.isInvalidated && _userHasRequiredRole(['Administrator', 'Verwarner']))
-                                                    PopupMenuButton<String>(
-                                                      onSelected: (String result) {
-                                                        if (result == 'make_valid') {
-                                                          _makeWarningValid(warning.id);
-                                                        }
-                                                      },
-                                                      itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-                                                        PopupMenuItem<String>(
-                                                          value: 'make_valid',
-                                                          child: Text('Gültig machen', style: GoogleFonts.inter()),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                ],
-                                              ),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                'Kommentar: ${warning.comment}',
-                                                style: GoogleFonts.inter(
-                                                  fontSize: 14,
-                                                  fontStyle: warning.isInvalidated ? FontStyle.italic : FontStyle.normal,
-                                                  color: warning.isInvalidated ? Colors.grey : Theme.of(context).textTheme.bodyMedium?.color,
+                                                  hint: Text('Bitte Stand auswählen', style: GoogleFonts.inter()),
+                                                  isExpanded: true,
+                                                  items: _standsForDropdown.map((stand) {
+                                                    return DropdownMenuItem<StandForDropdown>(
+                                                      value: stand,
+                                                      child: Text(stand.name, style: GoogleFonts.inter()),
+                                                    );
+                                                  }).toList(),
+                                                  onChanged: (StandForDropdown? newValue) {
+                                                    setState(() {
+                                                      _selectedStandForNewWarning = newValue;
+                                                    });
+                                                  },
                                                 ),
-                                              ),
-                                              if (warning.isInvalidated)
-                                                Column(
-                                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                                  children: [
-                                                    const SizedBox(height: 4),
-                                                    Text(
-                                                      'Ungültig gemacht von: ${warning.invalidatedByUserName ?? 'N/A'}',
-                                                      style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[500]),
+                                                const SizedBox(height: 16),
+                                                TextField(
+                                                  controller: _newWarningCommentController,
+                                                  decoration: InputDecoration(
+                                                    labelText: 'Kommentar für die Verwarnung',
+                                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                                    isDense: true,
+                                                    filled: true,
+                                                    fillColor: isDarkMode
+                                                        ? Colors.black.withOpacity(0.7)
+                                                        : Colors.white.withOpacity(0.7),
+                                                    labelStyle: GoogleFonts.inter(
+                                                      color: isDarkMode ? Colors.white70 : Colors.black87,
                                                     ),
-                                                    Text(
-                                                      'Kommentar zur Ungültigmachung: ${warning.invalidationComment ?? 'N/A'}',
-                                                      style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[500]),
+                                                    hintStyle: GoogleFonts.inter(
+                                                      color: isDarkMode ? Colors.white54 : Colors.black54,
                                                     ),
-                                                    Text(
-                                                      'Ungültig gemacht am: $formattedInvalidationTimestamp', // Use formattedInvalidationTimestamp
-                                                      style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[500]),
-                                                    ),
-                                                  ],
+                                                  ),
+                                                  maxLines: 3,
+                                                  style: GoogleFonts.inter(),
                                                 ),
-                                              const Divider(height: 16),
-                                            ],
+                                                const SizedBox(height: 16),
+                                                Center(
+                                                  child: ElevatedButton(
+                                                    onPressed: _isLoading ? null : _submitNewWarning,
+                                                    child: const Text('Verwarnung hinzufügen'),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
                                           ),
-                                        );
-                                      }).toList(),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                    ],
-                  ),
-                );
-              }
+                                        ),
+
+                                        // Section for all warnings
+                                        Text(
+                                          'Alle Verwarnungen',
+                                          style: GoogleFonts.inter(
+                                            fontSize: 24,
+                                            fontWeight: FontWeight.bold,
+                                            color: Theme.of(context).textTheme.headlineLarge?.color,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 20),
+
+                                        if (_groupedWarnings.isEmpty)
+                                          Center(
+                                            child: Text(
+                                              'Keine Verwarnungen gefunden.',
+                                              style: GoogleFonts.inter(fontSize: 16, color: Colors.grey[600]),
+                                            ),
+                                          )
+                                        else
+                                          ListView.builder(
+                                            shrinkWrap: true,
+                                            physics: const NeverScrollableScrollPhysics(),
+                                            itemCount: _groupedWarnings.length,
+                                            itemBuilder: (context, index) {
+                                              final groupedWarning = _groupedWarnings[index];
+                                              return Card(
+                                                margin: const EdgeInsets.only(bottom: 16.0),
+                                                elevation: 4,
+                                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
+                                                color: isDarkMode ? Colors.black : Colors.white, // Hintergrundfarbe der Karte
+                                                child: Padding(
+                                                  padding: const EdgeInsets.all(16.0),
+                                                  child: Column(
+                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    children: [
+                                                      Text(
+                                                        '${groupedWarning.standName} (${groupedWarning.totalWarnings} gültige Verwarnungen)',
+                                                        style: GoogleFonts.inter(
+                                                          fontSize: 20,
+                                                          fontWeight: FontWeight.bold,
+                                                          color: Theme.of(context).textTheme.headlineMedium?.color,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(height: 16),
+                                                      // List individual warnings for this stand
+                                                      if (groupedWarning.warnings.isEmpty)
+                                                        Padding(
+                                                          padding: const EdgeInsets.only(left: 8.0),
+                                                          child: Text(
+                                                            'Keine spezifischen Verwarnungen.',
+                                                            style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[600]),
+                                                          ),
+                                                        )
+                                                      else
+                                                        ...groupedWarning.warnings.map((warning) {
+                                                          // Format the warning timestamp
+                                                          String formattedTimestamp = 'N/A';
+                                                          try {
+                                                            final DateTime parsedTimestamp = DateTime.parse(warning.timestamp);
+                                                            formattedTimestamp = DateFormat('dd.MM.yyyy - HH:mm').format(parsedTimestamp.toLocal()); // Corrected format
+                                                          } catch (e) {
+                                                            print('Error parsing warning timestamp: $e');
+                                                            formattedTimestamp = 'Ungültiges Datum';
+                                                          }
+
+                                                          // Format the invalidation timestamp
+                                                          String formattedInvalidationTimestamp = 'N/A';
+                                                          if (warning.invalidationTimestamp != null) {
+                                                            try {
+                                                              final DateTime parsedInvalidationTimestamp = DateTime.parse(warning.invalidationTimestamp!);
+                                                              formattedInvalidationTimestamp = DateFormat('dd.MM.yyyy - HH:mm').format(parsedInvalidationTimestamp.toLocal()); // Corrected format
+                                                            } catch (e) {
+                                                              print('Error parsing invalidation timestamp: $e');
+                                                              formattedInvalidationTimestamp = 'Ungültiges Datum';
+                                                            }
+                                                          }
+
+
+                                                          return Padding(
+                                                            padding: const EdgeInsets.only(left: 8.0, bottom: 8.0),
+                                                            child: Column(
+                                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                                              children: [
+                                                                Row(
+                                                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                                                  children: [
+                                                                    Expanded(
+                                                                      child: Text(
+                                                                        'Verwarner: ${warning.warnerName} am $formattedTimestamp', // Use formattedTimestamp
+                                                                        style: GoogleFonts.inter(
+                                                                          fontSize: 14,
+                                                                          fontWeight: FontWeight.w600,
+                                                                          color: warning.isInvalidated ? Colors.grey : Theme.of(context).textTheme.bodyLarge?.color,
+                                                                        ),
+                                                                      ),
+                                                                    ),
+                                                                    if (warning.isInvalidated)
+                                                                      Icon(Icons.check_circle_outline, color: Colors.grey, size: 18),
+                                                                    if (!warning.isInvalidated && _userHasRequiredRole(['Administrator', 'Verwarner']))
+                                                                      PopupMenuButton<String>(
+                                                                        onSelected: (String result) {
+                                                                          if (result == 'invalidate') {
+                                                                            _showInvalidateWarningDialog(warning);
+                                                                          }
+                                                                        },
+                                                                        itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                                                                          PopupMenuItem<String>(
+                                                                            value: 'invalidate',
+                                                                            child: Text('Ungültig machen', style: GoogleFonts.inter()),
+                                                                          ),
+                                                                        ],
+                                                                      ),
+                                                                    if (warning.isInvalidated && _userHasRequiredRole(['Administrator', 'Verwarner']))
+                                                                      PopupMenuButton<String>(
+                                                                        onSelected: (String result) {
+                                                                          if (result == 'make_valid') {
+                                                                            _makeWarningValid(warning.id);
+                                                                          }
+                                                                        },
+                                                                        itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                                                                          PopupMenuItem<String>(
+                                                                            value: 'make_valid',
+                                                                            child: Text('Gültig machen', style: GoogleFonts.inter()),
+                                                                          ),
+                                                                        ],
+                                                                      ),
+                                                                  ],
+                                                                ),
+                                                                const SizedBox(height: 4),
+                                                                Text(
+                                                                  'Kommentar: ${warning.comment}',
+                                                                  style: GoogleFonts.inter(
+                                                                    fontSize: 14,
+                                                                    fontStyle: warning.isInvalidated ? FontStyle.italic : FontStyle.normal,
+                                                                    color: warning.isInvalidated ? Colors.grey : Theme.of(context).textTheme.bodyMedium?.color,
+                                                                  ),
+                                                                ),
+                                                                if (warning.isInvalidated)
+                                                                  Column(
+                                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                                    children: [
+                                                                      const SizedBox(height: 4),
+                                                                      Text(
+                                                                        'Ungültig gemacht von: ${warning.invalidatedByUserName ?? 'N/A'}',
+                                                                        style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[500]),
+                                                                      ),
+                                                                      Text(
+                                                                        'Kommentar zur Ungültigmachung: ${warning.invalidationComment ?? 'N/A'}',
+                                                                        style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[500]),
+                                                                      ),
+                                                                      Text(
+                                                                        'Ungültig gemacht am: $formattedInvalidationTimestamp', // Use formattedInvalidationTimestamp
+                                                                        style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[500]),
+                                                                      ),
+                                                                    ],
+                                                                  ),
+                                                                const Divider(height: 16),
+                                                              ],
+                                                            ),
+                                                          );
+                                                        }).toList(),
+                                                    ],
+                                                  ),
+                                                ),
+                                              );
+                                            },
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              }
+                            ),
             ),
           ),
         ],

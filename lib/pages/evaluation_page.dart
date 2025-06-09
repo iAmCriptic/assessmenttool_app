@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart'; // For session cookie and user role
-import 'package:intl/intl.dart'; // For date formatting - ADDED THIS IMPORT
+import 'package:intl/intl.dart'; // For date formatting
 
 /// Represents a Stand that can be evaluated.
 class Stand {
@@ -56,6 +56,7 @@ class EvaluationPage extends StatefulWidget {
 class _EvaluationPageState extends State<EvaluationPage> {
   String? _userRole; // Stores the current user's role
   String? _sessionCookie; // Stores the session cookie for authenticated requests
+  String? _logoFullPath; // To store the full path to the logo from admin settings
 
   bool _isLoading = true;
   String? _errorMessage;
@@ -69,12 +70,11 @@ class _EvaluationPageState extends State<EvaluationPage> {
   Map<int, int> _existingScores = {}; 
   String? _lastEvaluationTimestamp;
 
-  // Neue State-Variablen für dynamische Farbverläufe vom Server
-  Color _gradientColor1 = Colors.blue.shade50; // Standard Hellmodus Startfarbe
-  Color _gradientColor2 = Colors.blue.shade200; // Standard Hellmodus Endfarbe
-  Color _darkGradientColor1 = Colors.black; // Standard Dunkelmodus Startfarbe
-  Color _darkGradientColor2 = Colors.blueGrey; // Standard Dunkelmodus Endfarbe
-
+  // State variables for dynamic gradient colors from the server
+  Color _gradientColor1 = Colors.blue.shade50; // Default Light Mode Start Color
+  Color _gradientColor2 = Colors.blue.shade200; // Default Light Mode End Color
+  Color _darkGradientColor1 = Colors.black; // Default Dark Mode Start Color
+  Color _darkGradientColor2 = Colors.blueGrey; // Default Dark Mode End Color
 
   @override
   void initState() {
@@ -82,19 +82,16 @@ class _EvaluationPageState extends State<EvaluationPage> {
     _loadSessionCookie().then((_) {
       _loadUserRole().then((_) { // Load user role on init
         // Fetch initial data only if user has access roles
-        if (_userHasRequiredRole(['Administrator', 'Bewerter'])) {
-          _fetchPageData(); // Ruft jetzt alle Daten ab (Stände, Kriterien & Einstellungen)
-        } else {
-          setState(() {
-            _isLoading = false; // Stop loading if user has no access
-          });
-        }
+        // This ensures gradient colors and logo path are fetched even if user has no access initially
+        _fetchPageData(); 
       });
     });
   }
 
   @override
   void dispose() {
+    // Remove listeners from controllers before disposing
+    _scoreControllers.forEach((id, controller) => controller.removeListener(_updateSubmitButtonState));
     _scoreControllers.forEach((id, controller) => controller.dispose());
     super.dispose();
   }
@@ -128,10 +125,31 @@ class _EvaluationPageState extends State<EvaluationPage> {
     return headers;
   }
 
-  /// Konvertiert einen Hex-Farbstring (z.B. "#RRGGBB") in ein Flutter Color-Objekt.
+  /// Converts a Hex color string (e.g., "#RRGGBB") to a Flutter Color object.
   Color _hexToColor(String hexString) {
     final String hex = hexString.replaceAll('#', '');
     return Color(int.parse('ff$hex', radix: 16));
+  }
+
+  /// Extracts the base host from a given URL, removing protocol, port, and subdomains.
+  String _getBaseHost(String url) {
+    try {
+      final uri = Uri.parse(url);
+      final host = uri.host;
+
+      if (RegExp(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$').hasMatch(host)) {
+        return host;
+      }
+
+      final parts = host.split('.');
+      if (parts.length >= 2) {
+        return '${parts[parts.length - 2]}.${parts[parts.length - 1]}';
+      }
+      return host;
+    } catch (e) {
+      print('Error parsing URL for base host: $e');
+      return url;
+    }
   }
 
   /// Fetches all necessary data for the page (stands, criteria, and app settings).
@@ -141,26 +159,23 @@ class _EvaluationPageState extends State<EvaluationPage> {
       _errorMessage = null;
     });
 
-    if (!_userHasRequiredRole(['Administrator', 'Bewerter'])) {
-       setState(() {
-         _isLoading = false;
-         _errorMessage = 'Sie haben keine Berechtigung, auf diese Seite zuzugreifen.';
-       });
-       return;
-    }
-
     try {
       final headers = _getAuthHeaders();
 
-      // Rufe alle drei Endpunkte gleichzeitig ab
-      final Future<http.Response> initialDataFuture =
-          http.get(Uri.parse('${widget.serverAddress}/api/evaluate_initial_data'), headers: headers);
+      final Future<http.Response> initialDataFuture;
+      if (_userHasRequiredRole(['Administrator', 'Bewerter'])) {
+        initialDataFuture = http.get(Uri.parse('${widget.serverAddress}/api/evaluate_initial_data'), headers: headers);
+      } else {
+        // Return a dummy response for initialDataFuture if user doesn't have access
+        initialDataFuture = Future.value(http.Response('{"success": false, "message": "Keine Berechtigung"}', 403));
+      }
+      
       final Future<http.Response> adminSettingsFuture =
           http.get(Uri.parse('${widget.serverAddress}/api/admin_settings'), headers: headers);
 
       final List<http.Response> responses = await Future.wait([initialDataFuture, adminSettingsFuture]);
 
-      // Verarbeitung der Initialdaten (Stände und Kriterien)
+      // Process Initial Data (Stands and Criteria)
       final initialDataResponse = responses[0];
       if (initialDataResponse.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(initialDataResponse.body);
@@ -168,12 +183,14 @@ class _EvaluationPageState extends State<EvaluationPage> {
           setState(() {
             _stands = (data['stands'] as List).map((s) => Stand.fromJson(s)).toList();
             _criteria = (data['criteria'] as List).map((c) => Criterion.fromJson(c)).toList();
-            // Initialisiere Controller
-            _scoreControllers.clear(); // Alte Controller löschen, falls vorhanden
+            // Initialize controllers
+            _scoreControllers.forEach((id, controller) => controller.removeListener(_updateSubmitButtonState)); // Remove old listeners
+            _scoreControllers.clear(); // Clear old controllers if any
             _criteria.forEach((criterion) {
               _scoreControllers[criterion.id] = TextEditingController();
+              _scoreControllers[criterion.id]?.addListener(_updateSubmitButtonState);
             });
-            // Ausgewählten Stand und bestehende Punktzahlen zurücksetzen
+            // Reset selected stand and existing scores
             _selectedStand = null;
             _existingScores.clear();
             _lastEvaluationTimestamp = null;
@@ -181,12 +198,14 @@ class _EvaluationPageState extends State<EvaluationPage> {
         } else {
           _errorMessage = data['message'] ?? 'Fehler beim Laden der Initialdaten.';
         }
+      } else if (initialDataResponse.statusCode == 403) {
+        _errorMessage = 'Sie haben keine Berechtigung, auf diese Seite zuzugreifen.';
       } else {
         _errorMessage = 'Fehler ${initialDataResponse.statusCode}: ${initialDataResponse.reasonPhrase}';
         print('Error fetching initial data: ${initialDataResponse.statusCode} - ${initialDataResponse.body}');
       }
 
-      // Verarbeitung der Admin-Einstellungen (für den Farbverlauf)
+      // Process Admin Settings (for gradient and logo)
       final adminSettingsResponse = responses[1];
       if (adminSettingsResponse.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(adminSettingsResponse.body);
@@ -196,10 +215,29 @@ class _EvaluationPageState extends State<EvaluationPage> {
             _gradientColor2 = _hexToColor(data['settings']['bg_gradient_color2'] ?? '#BBDEFB');
             _darkGradientColor1 = _hexToColor(data['settings']['dark_bg_gradient_color1'] ?? '#000000');
             _darkGradientColor2 = _hexToColor(data['settings']['dark_bg_gradient_color2'] ?? '#455A64');
+
+            final String? logoPathFromBackend = data['settings']['logo_path'];
+            if (logoPathFromBackend != null && logoPathFromBackend.isNotEmpty) {
+              if (logoPathFromBackend.startsWith('http://') || logoPathFromBackend.startsWith('https://')) {
+                _logoFullPath = logoPathFromBackend;
+              } else {
+                String serverAddress = widget.serverAddress;
+                String cleanedLogoPath = logoPathFromBackend;
+                if (serverAddress.endsWith('/')) {
+                  serverAddress = serverAddress.substring(0, serverAddress.length - 1);
+                }
+                if (cleanedLogoPath.startsWith('/')) {
+                  cleanedLogoPath = cleanedLogoPath.substring(1);
+                }
+                _logoFullPath = '$serverAddress/$cleanedLogoPath';
+              }
+            } else {
+              _logoFullPath = null;
+            }
           });
         }
       } else {
-        print('Error fetching admin settings for gradient: ${adminSettingsResponse.statusCode}');
+        print('Error fetching admin settings for gradient and logo: ${adminSettingsResponse.statusCode}');
       }
 
     } catch (e) {
@@ -208,10 +246,10 @@ class _EvaluationPageState extends State<EvaluationPage> {
     } finally {
       setState(() {
         _isLoading = false;
+        _updateSubmitButtonState(); // Initial check for button state
       });
     }
   }
-
 
   /// Fetches existing scores for the currently selected stand by the current user.
   Future<void> _fetchExistingScores(int standId) async {
@@ -235,10 +273,17 @@ class _EvaluationPageState extends State<EvaluationPage> {
               _existingScores[int.parse(key)] = value;
             });
             
-            // Parse and format the timestamp
+            // Parse and format the timestamp, handling different ISO 8601 variations
             if (data['timestamp'] != null) {
-              final DateTime parsedTimestamp = DateTime.parse(data['timestamp']);
-              _lastEvaluationTimestamp = DateFormat('dd.MM.yyyy - HH:mm').format(parsedTimestamp.toLocal());
+              try {
+                // Ensure the timestamp is treated as UTC if it comes with +00:00 or Z
+                final DateTime parsedTimestamp = DateTime.parse(data['timestamp']).toUtc();
+                _lastEvaluationTimestamp = DateFormat('dd.MM.yyyy - HH:mm').format(parsedTimestamp.toLocal());
+              } catch (e) {
+                print('Warning: Could not parse timestamp directly. Attempting custom parse: $e');
+                // Fallback: If parsing fails, display the raw string for debugging
+                _lastEvaluationTimestamp = data['timestamp'].toString(); 
+              }
             } else {
               _lastEvaluationTimestamp = null;
             }
@@ -269,14 +314,40 @@ class _EvaluationPageState extends State<EvaluationPage> {
     } finally {
       setState(() {
         _isLoading = false;
+        _updateSubmitButtonState(); // Update button state after fetching scores
       });
     }
   }
 
+  /// Checks if all required fields are filled for the submit button to be enabled.
+  bool _canSubmitEvaluation() {
+    if (_selectedStand == null) {
+      return false;
+    }
+    // Check if all score fields are filled and valid
+    for (final criterion in _criteria) {
+      final text = _scoreControllers[criterion.id]?.text;
+      if (text == null || text.trim().isEmpty) {
+        return false; // Field is empty
+      }
+      final score = int.tryParse(text);
+      if (score == null || score < 0 || score > criterion.maxScore) {
+        return false; // Invalid score (e.g., not a number, or out of range)
+      }
+    }
+    return true;
+  }
+
+  /// Updates the state to enable/disable the submit button.
+  void _updateSubmitButtonState() {
+    // This will trigger a rebuild and re-evaluate _canSubmitEvaluation()
+    setState(() {}); 
+  }
+
   /// Submits the evaluation scores to the Flask backend.
   Future<void> _submitEvaluation() async {
-    if (_selectedStand == null) {
-      _showAlertDialog('Fehler', 'Bitte wähle zuerst einen Stand aus.');
+    if (!_canSubmitEvaluation()) {
+      _showAlertDialog('Fehler', 'Bitte fülle alle Bewertungsfelder korrekt aus.');
       return;
     }
 
@@ -293,7 +364,6 @@ class _EvaluationPageState extends State<EvaluationPage> {
         if (score != null && score >= 0 && score <= criterion.maxScore) {
           scoresToSubmit[criterion.id.toString()] = score;
         } else {
-          // If score is invalid, it won't be submitted, but we should clear it if it was there
           _scoreControllers[criterion.id]?.clear(); 
         }
       }
@@ -314,7 +384,6 @@ class _EvaluationPageState extends State<EvaluationPage> {
         final Map<String, dynamic> data = json.decode(response.body);
         if (data['success']) {
           _showAlertDialog('Erfolg', data['message'] ?? 'Bewertung erfolgreich gespeichert!');
-          // Refresh existing scores after submission
           _fetchExistingScores(_selectedStand!.id); 
         } else {
           _showAlertDialog('Fehler', data['message'] ?? 'Bewertung fehlgeschlagen.');
@@ -330,6 +399,7 @@ class _EvaluationPageState extends State<EvaluationPage> {
     } finally {
       setState(() {
         _isLoading = false;
+        _updateSubmitButtonState(); // Update button state after submission attempt
       });
     }
   }
@@ -398,362 +468,310 @@ class _EvaluationPageState extends State<EvaluationPage> {
     return TextSpan(children: spans);
   }
 
+  // Helper widget for the header with title and logo
+  Widget _buildHeaderWithLogo(BuildContext context, String title) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0), // Added horizontal padding
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.center, // Vertically center
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              style: GoogleFonts.inter(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).textTheme.headlineLarge?.color,
+              ),
+              textAlign: TextAlign.left,
+            ),
+          ),
+          if (_logoFullPath != null && _logoFullPath!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(left: 16.0),
+              child: Image.network(
+                _logoFullPath!,
+                height: 80, // Larger logo size
+                width: 80,  // Larger logo size
+                fit: BoxFit.contain,
+                key: ValueKey(_logoFullPath),
+                errorBuilder: (context, error, stackTrace) =>
+                    Icon(Icons.business, size: 80, color: Theme.of(context).iconTheme.color), // Icon size matches
+              ),
+            )
+          else
+            Icon(Icons.business, size: 80, color: Theme.of(context).iconTheme.color),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     // Determine if dark mode is enabled
     final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
-    // Definiere die Farbverläufe basierend auf dem aktuellen Theme-Modus und den abgerufenen Farben
+    // Define the gradients based on current theme brightness using fetched colors
     final Gradient backgroundGradient = isDarkMode
         ? LinearGradient(
-            colors: [_darkGradientColor1, _darkGradientColor2], // Verwende abgerufene Dunkelmodus-Farben
+            colors: [_darkGradientColor1, _darkGradientColor2], // Use fetched dark mode colors
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           )
         : LinearGradient(
-            colors: [_gradientColor1, _gradientColor2], // Verwende abgerufene Hellmodus-Farben
+            colors: [_gradientColor1, _gradientColor2], // Use fetched light mode colors
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           );
 
-    if (!_userHasRequiredRole(['Administrator', 'Bewerter'])) {
-      // Zugriff verweigert Meldung anzeigen
-      return Scaffold(
-        // Hintergrund transparent setzen, damit der Gradient durchscheint
-        backgroundColor: Colors.transparent, 
-        body: Stack( // Stack verwenden, um Hintergrund und Inhalt zu schichten
-          children: [
-            Positioned.fill(
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: backgroundGradient, // Den Farbverlauf anwenden
-                ),
-              ),
-            ),
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Überschrift
-                    Text(
-                      'Bewertung',
-                      style: GoogleFonts.inter(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).textTheme.headlineLarge?.color,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 30),
-                    Icon(Icons.lock_outline, size: 60, color: Theme.of(context).disabledColor),
-                    const SizedBox(height: 20),
-                    Text(
-                      'Um hierdrauf zugreifen zu Können, brauchst du die Rolle Bewerter. Bei Bedarf kannst du diese beim Organisator erfragen.',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.inter(fontSize: 18, color: Theme.of(context).textTheme.bodyLarge?.color),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (_isLoading) {
-      return Scaffold(
-        // Hintergrund transparent setzen, damit der Gradient durchscheint
-        backgroundColor: Colors.transparent,
-        body: Stack(
-          children: [
-            Positioned.fill(
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: backgroundGradient,
-                ),
-              ),
-            ),
-            const Center(child: CircularProgressIndicator()),
-          ],
-        ),
-      );
-    }
-
-    if (_errorMessage != null) {
-      return Scaffold(
-        // Hintergrund transparent setzen, damit der Gradient durchscheint
-        backgroundColor: Colors.transparent,
-        body: Stack(
-          children: [
-            Positioned.fill(
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: backgroundGradient,
-                ),
-              ),
-            ),
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Überschrift
-                    Text(
-                      'Bewertung',
-                      style: GoogleFonts.inter(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).textTheme.headlineLarge?.color,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 30),
-                    Icon(Icons.error_outline, color: Colors.red, size: 48),
-                    const SizedBox(height: 10),
-                    Text(
-                      _errorMessage!,
-                      style: GoogleFonts.inter(color: Colors.red, fontSize: 16),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 20),
-                    ElevatedButton(
-                      onPressed: _fetchPageData, // Gesamte Seitendaten neu laden
-                      child: const Text('Erneut versuchen'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
+    // No AppBar is used anymore, the title and logo are directly in the body.
+    // The Scaffold background will be the gradient.
 
     return Scaffold(
-      // Hintergrund transparent setzen, damit der Gradient durchscheint
+      extendBodyBehindAppBar: true, 
       backgroundColor: Colors.transparent, 
-      body: Stack( // Stack verwenden, um Hintergrund und Inhalt zu schichten
+      body: Stack( 
         children: [
-          // Hintergrund-Gradient-Container (füllt den gesamten Scaffold-Body)
           Positioned.fill(
             child: Container(
               decoration: BoxDecoration(
-                gradient: backgroundGradient, // Den Farbverlauf anwenden
+                gradient: backgroundGradient, 
               ),
             ),
           ),
-          // Vordergrund-Inhalt (SingleChildScrollView)
-          LayoutBuilder( // LayoutBuilder verwenden, um Constraints zu erhalten
-            builder: (context, constraints) {
-              return SingleChildScrollView(
-                padding: EdgeInsets.fromLTRB(
-                  16.0,
-                  16.0,
-                  16.0,
-                  // Angepasster Bottom-Padding für die BottomAppBar und System-Insets
-                  16.0 + MediaQuery.of(context).padding.bottom + kBottomNavigationBarHeight, 
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Überschrift
-                    Padding(
-                      padding: const EdgeInsets.only(top: 16.0, bottom: 16.0), // Add padding for the title
-                      child: Text(
-                        'Bewertung',
-                        style: GoogleFonts.inter(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).textTheme.headlineLarge?.color,
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: _buildHeaderWithLogo(context, 'Bewertung'), // Use the common header widget
+          ),
+          // Main content area, pushed down to clear the header
+          Padding(
+            padding: const EdgeInsets.only(top: 110.0, left: 20.0, right: 20.0), // Consistent top padding for all main content
+            child: SafeArea( // Ensure content is within safe area
+              child: !_userHasRequiredRole(['Administrator', 'Bewerter'])
+                  ? // User DOES NOT have required role (Access Denied)
+                    Column(
+                      mainAxisAlignment: MainAxisAlignment.center, // Vertically center the content
+                      children: [
+                        Icon(Icons.lock_outline, size: 60, color: Theme.of(context).disabledColor),
+                        const SizedBox(height: 20),
+                        Text(
+                          'Um hierdrauf zugreifen zu Können, brauchst du die Rolle Bewerter. Bei Bedarf kannst du diese beim Organisator erfragen.',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.inter(fontSize: 18, color: Theme.of(context).textTheme.bodyLarge?.color),
                         ),
-                        textAlign: TextAlign.left,
-                      ),
-                    ),
-                    const SizedBox(height: 20), // Add space after the new title
-
-                    // Stand Selection
-                    DropdownButtonFormField<Stand>(
-                      value: _selectedStand,
-                      decoration: InputDecoration(
-                        labelText: 'Stand auswählen:',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                        filled: true, // Wichtig für Füllfarbe
-                        fillColor: isDarkMode 
-                            ? Colors.black.withOpacity(0.7) // Halbtransparentes Schwarz im Dark Mode
-                            : Colors.white.withOpacity(0.7), // Halbtransparentes Weiß im Light Mode
-                        labelStyle: GoogleFonts.inter(
-                          color: isDarkMode ? Colors.white70 : Colors.black87, // Anpassung der Label-Farbe
-                        ),
-                        hintStyle: GoogleFonts.inter(
-                          color: isDarkMode ? Colors.white54 : Colors.black54, // Anpassung der Hint-Farbe
-                        ),
-                      ),
-                      hint: Text('Bitte Stand auswählen', style: GoogleFonts.inter()),
-                      isExpanded: true,
-                      items: _stands.map((stand) {
-                        return DropdownMenuItem<Stand>(
-                          value: stand,
-                          child: Text(
-                            '${stand.name} (${stand.roomName ?? "Kein Raum"})',
-                            style: GoogleFonts.inter(
-                              color: isDarkMode ? Colors.white : Colors.black87, // Textfarbe der Dropdown-Items
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                      onChanged: (Stand? newValue) {
-                        setState(() {
-                          _selectedStand = newValue;
-                          // Clear controllers and existing scores when selecting a new stand
-                          _existingScores.clear();
-                          _lastEvaluationTimestamp = null;
-                          _criteria.forEach((criterion) {
-                            _scoreControllers[criterion.id]?.clear();
-                          });
-
-                          if (newValue != null) {
-                            _fetchExistingScores(newValue.id); // Fetch scores when stand changes
-                          }
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Stand Description
-                    // Card für Beschreibung und Zeitstempel
-                    if (_selectedStand != null)
-                      Card(
-                        margin: EdgeInsets.zero, // Remove card margin to fit nicely
-                        elevation: 2,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        color: isDarkMode ? Colors.black : Colors.white, // Adjusted card color for dark mode
-                        child: Padding(
-                          padding: const EdgeInsets.all(12.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (_selectedStand!.description != null && _selectedStand!.description!.trim().isNotEmpty)
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Beschreibung:',
-                                      style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16, color: Theme.of(context).textTheme.bodyLarge?.color),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    RichText(
-                                      text: _parseSimpleHtmlToTextSpan(
-                                        _selectedStand!.description!,
-                                        GoogleFonts.inter(fontSize: 14, color: Theme.of(context).textTheme.bodyLarge?.color),
-                                      ),
-                                    ),
-                                  ],
-                                )
-                              else
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 10.0),
-                                  child: Text(
-                                    'Keine Beschreibung für diesen Stand verfügbar.',
-                                    style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[600]),
-                                  ),
-                                ),
-                              
-                              if (_lastEvaluationTimestamp != null) ...[
-                                const SizedBox(height: 16), // Abstand zwischen Beschreibung und Zeitstempel
+                      ],
+                    )
+                  : // User HAS required role (proceed with loading/error/main content)
+                    _isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : _errorMessage != null
+                          ? Column(
+                              mainAxisAlignment: MainAxisAlignment.center, // Vertically center the content
+                              children: [
+                                Icon(Icons.error_outline, color: Colors.red, size: 48),
+                                const SizedBox(height: 10),
                                 Text(
-                                  'Zuletzt bewertet: $_lastEvaluationTimestamp',
-                                  style: GoogleFonts.inter(fontSize: 14, color: Colors.blueAccent),
+                                  _errorMessage!,
+                                  style: GoogleFonts.inter(color: Colors.red, fontSize: 16),
+                                  textAlign: TextAlign.center,
+                                ),
+                                const SizedBox(height: 20),
+                                ElevatedButton(
+                                  onPressed: _fetchPageData, 
+                                  child: const Text('Try again'),
                                 ),
                               ],
-                            ],
-                          ),
-                        ),
-                      ),
-                    const SizedBox(height: 20),
-
-
-                    // Criteria Inputs
-                    ListView.builder(
-                      shrinkWrap: true, // Important to prevent unbounded height
-                      physics: const NeverScrollableScrollPhysics(), // Disable scrolling of ListView
-                      itemCount: _criteria.length,
-                      itemBuilder: (context, index) {
-                        final criterion = _criteria[index];
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 16.0), // Add spacing between items
-                          child: Card(
-                            elevation: 2,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                            color: isDarkMode ? Colors.black : Colors.white, // Adjusted card color for dark mode
-                            child: Padding(
-                              padding: const EdgeInsets.all(12.0),
+                            )
+                          : SingleChildScrollView( // Main content if user has role and no error
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Expanded(
+                                  // Stand Selection
+                                  DropdownButtonFormField<Stand>(
+                                    value: _selectedStand,
+                                    decoration: InputDecoration(
+                                      labelText: 'Stand auswählen:',
+                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                                      filled: true, 
+                                      fillColor: isDarkMode 
+                                          ? Colors.black.withOpacity(0.7) 
+                                          : Colors.white.withOpacity(0.7), 
+                                      labelStyle: GoogleFonts.inter(
+                                        color: isDarkMode ? Colors.white70 : Colors.black87, 
+                                      ),
+                                      hintStyle: GoogleFonts.inter(
+                                        color: isDarkMode ? Colors.white54 : Colors.black54, 
+                                      ),
+                                    ),
+                                    hint: Text('Bitte Stand auswählen', style: GoogleFonts.inter()),
+                                    isExpanded: true,
+                                    items: _stands.map((stand) {
+                                      return DropdownMenuItem<Stand>(
+                                        value: stand,
                                         child: Text(
-                                          '${criterion.name} (1-${criterion.maxScore}):',
-                                          style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14),
-                                          overflow: TextOverflow.ellipsis, // Handle long names
-                                          maxLines: 2, // Allow up to 2 lines for criterion name
+                                          '${stand.name} (${stand.roomName ?? "Kein Raum"})',
+                                          style: GoogleFonts.inter(
+                                            color: isDarkMode ? Colors.white : Colors.black87, 
+                                          ),
+                                        ),
+                                      );
+                                    }).toList(),
+                                    onChanged: (Stand? newValue) {
+                                      setState(() {
+                                        _selectedStand = newValue;
+                                        _existingScores.clear();
+                                        _lastEvaluationTimestamp = null;
+                                        _criteria.forEach((criterion) {
+                                          _scoreControllers[criterion.id]?.clear();
+                                        });
+
+                                        if (newValue != null) {
+                                          _fetchExistingScores(newValue.id); 
+                                        }
+                                      });
+                                    },
+                                  ),
+                                  const SizedBox(height: 20),
+
+                                  // Stand Description
+                                  if (_selectedStand != null)
+                                    Card(
+                                      margin: EdgeInsets.zero, 
+                                      elevation: 2,
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                      color: isDarkMode ? Colors.black : Colors.white, 
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(12.0),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            if (_selectedStand!.description != null && _selectedStand!.description!.trim().isNotEmpty)
+                                              Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    'Beschreibung:',
+                                                    style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16, color: Theme.of(context).textTheme.bodyLarge?.color),
+                                                  ),
+                                                  const SizedBox(height: 8),
+                                                  RichText(
+                                                    text: _parseSimpleHtmlToTextSpan(
+                                                      _selectedStand!.description!,
+                                                      GoogleFonts.inter(fontSize: 14, color: Theme.of(context).textTheme.bodyLarge?.color),
+                                                    ),
+                                                  ),
+                                                ],
+                                              )
+                                            else
+                                              Padding(
+                                                padding: const EdgeInsets.symmetric(vertical: 10.0),
+                                                child: Text(
+                                                  'Keine Beschreibung für diesen Stand verfügbar.',
+                                                  style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[600]),
+                                                ),
+                                              ),
+                                            
+                                            if (_lastEvaluationTimestamp != null) ...[
+                                              const SizedBox(height: 16), 
+                                              Text(
+                                                'Zuletzt bewertet: $_lastEvaluationTimestamp',
+                                                style: GoogleFonts.inter(fontSize: 14, color: Colors.blueAccent),
+                                              ),
+                                            ],
+                                          ],
                                         ),
                                       ),
-                                      IconButton( // Changed from Tooltip to IconButton to open dialog
-                                        icon: Icon(Icons.info_outline, size: 20, color: Theme.of(context).iconTheme.color),
-                                        onPressed: () {
-                                          _showAlertDialog(
-                                            criterion.name, // Title of the dialog is the criterion name
-                                            criterion.description, // Content is the description
-                                          );
-                                        },
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
-                                  SizedBox( // Wrapped TextField in SizedBox for explicit height
-                                    height: 65, // Increased height for input field (original was implicitly smaller)
-                                    child: TextField(
-                                      controller: _scoreControllers[criterion.id],
-                                      keyboardType: TextInputType.number,
-                                      decoration: InputDecoration(
-                                        hintText: 'Punkte',
-                                        isDense: false, // Make input field taller (from isDense: true)
-                                        contentPadding: const EdgeInsets.symmetric(vertical: 20, horizontal: 10), // Increased vertical padding
-                                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                      ),
-                                      style: GoogleFonts.inter(),
                                     ),
+                                  const SizedBox(height: 20),
+
+                                  // Criteria Inputs
+                                  ListView.builder(
+                                    shrinkWrap: true, 
+                                    physics: const NeverScrollableScrollPhysics(), 
+                                    itemCount: _criteria.length,
+                                    itemBuilder: (context, index) {
+                                      final criterion = _criteria[index];
+                                      return Padding(
+                                        padding: const EdgeInsets.only(bottom: 16.0), 
+                                        child: Card(
+                                          elevation: 2,
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                          color: isDarkMode ? Colors.black : Colors.white, 
+                                          child: Padding(
+                                            padding: const EdgeInsets.all(12.0),
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Row(
+                                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                                  children: [
+                                                    Expanded(
+                                                      child: Text(
+                                                        '${criterion.name} (1-${criterion.maxScore}):',
+                                                        style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14),
+                                                        overflow: TextOverflow.ellipsis, 
+                                                        maxLines: 2, 
+                                                      ),
+                                                    ),
+                                                    IconButton( 
+                                                      icon: Icon(Icons.info_outline, size: 20, color: Theme.of(context).iconTheme.color),
+                                                      onPressed: () {
+                                                        _showAlertDialog(
+                                                          criterion.name, 
+                                                          criterion.description, 
+                                                        );
+                                                      },
+                                                    ),
+                                                  ],
+                                                ),
+                                                const SizedBox(height: 8),
+                                                SizedBox( 
+                                                  height: 65, 
+                                                  child: TextField(
+                                                    controller: _scoreControllers[criterion.id],
+                                                    keyboardType: TextInputType.number,
+                                                    decoration: InputDecoration(
+                                                      hintText: 'Punkte',
+                                                      isDense: false, 
+                                                      contentPadding: const EdgeInsets.symmetric(vertical: 20, horizontal: 10), 
+                                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                                    ),
+                                                    style: GoogleFonts.inter(),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    },
                                   ),
+                                  // Add some bottom padding to ensure content above the FAB is visible when scrolled
+                                  const SizedBox(height: 100), 
                                 ],
                               ),
                             ),
-                          ),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Submit Button
-                    Center(
-                      child: ElevatedButton(
-                        onPressed: _submitEvaluation,
-                        child: const Text('Bewertung speichern'),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-                ),
-              );
-            }
+            ),
           ),
+          // Floating Action Button - repositioned to match the screenshot
+          // Only show the FAB if the user has the required role AND can submit evaluation
+          if (_userHasRequiredRole(['Administrator', 'Bewerter']))
+            Positioned(
+              bottom: 70 +  kBottomNavigationBarHeight, // Adjust based on bottom safe area and nav bar
+              right: 20, // Adjust from the right edge
+              child: FloatingActionButton.extended(
+                onPressed: _canSubmitEvaluation() && !_isLoading ? _submitEvaluation : null, // Disable if not all fields are filled or loading
+                label: const Text('Speichern'), 
+                icon: const Icon(Icons.save),
+                backgroundColor: _canSubmitEvaluation() && !_isLoading ? Colors.blueAccent : Colors.grey, // Visual feedback for disabled
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)), // Rounded corners for FAB
+                elevation: 6.0,
+              ),
+            ),
         ],
       ),
     );

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:provider/provider.dart';
-import '../theme_manager.dart'; // Adjust path if necessary
+// Adjust path if necessary
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart'; // For session cookie and user role
@@ -401,11 +400,11 @@ class _ManageCriteriaPageState extends State<ManageCriteriaPage> {
                   },
                 ),
                 ElevatedButton(
-                  child: Text('Bestätigen', style: GoogleFonts.inter()),
                   onPressed: () {
                     Navigator.of(context).pop(true);
                   },
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                  child: Text('Bestätigen', style: GoogleFonts.inter()),
                 ),
               ],
             );
@@ -792,7 +791,7 @@ class _ManageCriteriaPageState extends State<ManageCriteriaPage> {
                         const int maxChars = 50; // Max characters for truncated display
 
                         if (displayDescription.length > maxChars) {
-                          displayDescription = displayDescription.substring(0, maxChars) + '...';
+                          displayDescription = '${displayDescription.substring(0, maxChars)}...';
                           needsReadMore = true;
                         }
 

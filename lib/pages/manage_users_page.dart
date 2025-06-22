@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:provider/provider.dart';
-import '../theme_manager.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart'; // For SharedPreferences and session cookie
@@ -124,7 +122,7 @@ class _ManageUsersPageState extends State<ManageUsersPage> {
   final TextEditingController _newUsernameController = TextEditingController();
   final TextEditingController _newPasswordController = TextEditingController();
   final TextEditingController _newDisplayNameController = TextEditingController();
-  List<Role> _selectedNewRoles = []; // For multiselect dropdown
+  final List<Role> _selectedNewRoles = []; // For multiselect dropdown
 
   // Controllers for editing an existing user
   final TextEditingController _editDisplayNameController = TextEditingController();
@@ -258,8 +256,7 @@ class _ManageUsersPageState extends State<ManageUsersPage> {
               (_errorMessage ?? '') + (data['message'] ?? 'Fehler beim Laden der Rollen.');
         }
       } else {
-        _errorMessage = (_errorMessage ?? '') +
-            'Fehler ${rolesResponse.statusCode}: ${rolesResponse.reasonPhrase}';
+        _errorMessage = '${_errorMessage ?? ''}Fehler ${rolesResponse.statusCode}: ${rolesResponse.reasonPhrase}';
         print(
             'Error fetching roles: ${rolesResponse.statusCode} - ${rolesResponse.body}');
       }
@@ -496,11 +493,11 @@ class _ManageUsersPageState extends State<ManageUsersPage> {
                   },
                 ),
                 ElevatedButton(
-                  child: Text('Bestätigen', style: GoogleFonts.inter()),
                   onPressed: () {
                     Navigator.of(context).pop(true);
                   },
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                  child: Text('Bestätigen', style: GoogleFonts.inter()),
                 ),
               ],
             );

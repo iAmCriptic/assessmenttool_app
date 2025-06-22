@@ -64,8 +64,7 @@ class _LoginPageState extends State<LoginPage> {
       // preventing "setState() called during build" errors.
       Future.microtask(() => _login(isAutoLogin: true));
     } else {
-      // Set a default IP if no saved credentials are found
-      _serverAddressController.text = 'http://10.0.2.2:5000'; // Default for Android Emulator
+      // Do nothing, leave the field empty if no saved credentials are found.
     }
   }
 
@@ -133,7 +132,7 @@ class _LoginPageState extends State<LoginPage> {
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseBody = json.decode(response.body);
-        
+
         // Extract Set-Cookie header if present
         String? sessionCookie;
         if (response.headers.containsKey('set-cookie')) {
@@ -201,83 +200,243 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  /// Shows a dialog explaining the server address format.
+  void _showHelpDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Hilfe zur Server-Adresse', style: GoogleFonts.inter()),
+          content: Text(
+            'Bitte gib hier die Basis-Domäne deines Servers ein, z.B. tool.example.com/ oder http://10.0.2.2:5000. Achte darauf, dass kein /login oder ähnliches am Ende steht.',
+            style: GoogleFonts.inter(),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: Text('Verstanden', style: GoogleFonts.inter()),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // Access ThemeNotifier
-    final themeNotifier = Provider.of<ThemeNotifier>(context, listen: false);
+    final themeNotifier = Provider.of<ThemeNotifier>(context); // Listen to changes to react to theme toggling
+
+    // Determine gradient colors based on current theme
+    final List<Color> gradientColors;
+    if (Theme.of(context).brightness == Brightness.dark) {
+      gradientColors = [
+        const Color(0xFF1A237E), // Dunkelblau
+        const Color(0xFFB71C1C), // Dunkelrot
+      ];
+    } else {
+      gradientColors = [
+        Colors.green.shade300, // Grün
+        Colors.blue.shade300, // Blau
+      ];
+    }
+
+    // Determine border color based on current theme for input fields
+    final Color borderColor = Theme.of(context).brightness == Brightness.dark
+        ? Colors.white.withOpacity(0.5) // Light border for dark mode
+        : Theme.of(context).colorScheme.onSurface.withOpacity(0.7); // Existing border for light mode
+
+    // Focused border color (blue)
+    final Color focusedBorderColor = Theme.of(context).colorScheme.primary;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Anmelden'),
-        // AppBar colors are now managed by ThemeData
-        actions: [
-          IconButton(
-            icon: Icon(
-              Theme.of(context).brightness == Brightness.dark
-                  ? Icons.light_mode // Sun icon for Dark Mode
-                  : Icons.dark_mode, // Moon icon for Light Mode
-            ),
-            onPressed: () {
-              themeNotifier.toggleTheme(); // Toggle theme
-            },
+      // AppBar removed as requested
+
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: gradientColors,
           ),
-        ],
-      ),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: <Widget>[
-              const SizedBox(height: 30),
-              TextField(
-                controller: _serverAddressController,
-                decoration: const InputDecoration(
-                  labelText: 'Server-Adresse (z.B. http://10.0.2.2:5000)',
-                  prefixIcon: Icon(Icons.dns),
-                ),
-                keyboardType: TextInputType.url,
-                style: GoogleFonts.inter(), // Apply Inter font
-              ),
-              const SizedBox(height: 20),
-              TextField(
-                controller: _usernameController,
-                decoration: const InputDecoration(
-                  labelText: 'Benutzername',
-                  prefixIcon: Icon(Icons.person),
-                ),
-                style: GoogleFonts.inter(), // Apply Inter font
-              ),
-              const SizedBox(height: 20),
-              TextField(
-                controller: _passwordController,
-                obscureText: true, // Hide password
-                decoration: const InputDecoration(
-                  labelText: 'Passwort',
-                  prefixIcon: Icon(Icons.lock),
-                ),
-                style: GoogleFonts.inter(), // Apply Inter font
-              ),
-              const SizedBox(height: 30),
-              _isLoading
-                  ? const CircularProgressIndicator() // Show loading indicator
-                  : ElevatedButton(
-                      onPressed: _login,
-                      child: const Text('Anmelden'),
+        ),
+        child: Stack(
+          children: [
+            // Title and Subtitle in the top left
+            Positioned(
+              top: 40.0,
+              left: 16.0,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Bewertungstool',
+                    style: GoogleFonts.inter(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.onBackground,
                     ),
-              if (_errorMessage != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 20),
-                  child: Text(
-                    _errorMessage!,
-                    style: GoogleFonts.inter(color: Colors.red, fontSize: 16),
-                    textAlign: TextAlign.center,
                   ),
+                  const SizedBox(height: 5),
+                  Text(
+                    'Anmeldung',
+                    style: GoogleFonts.inter(
+                      fontSize: 20,
+                      color: Theme.of(context).colorScheme.onBackground.withOpacity(0.8),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Logo in the top right
+            Positioned(
+              top: 40.0,
+              right: 16.0,
+              child: Image.asset(
+                'assets/logo.png', // Corrected path assuming 'assets' folder is defined in pubspec.yaml
+                width: 50, // Adjust size as needed
+                height: 50,
+                errorBuilder: (context, error, stackTrace) {
+                  return const Icon(
+                    Icons.broken_image,
+                    size: 50,
+                    color: Colors.white,
+                  ); // Fallback icon in case image asset is not found
+                },
+              ),
+            ),
+            Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: <Widget>[
+                    const SizedBox(height: 180), // Increased space from the top to account for title/subtitle and logo
+                    // TextField for Server Address
+                    TextField(
+                      controller: _serverAddressController,
+                      decoration: InputDecoration(
+                        labelText: 'Server-Adresse (z.B. http://tool.example.com/)',
+                        prefixIcon: Icon(Icons.dns, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8)),
+                        enabledBorder: UnderlineInputBorder( // Default state border
+                          borderSide: BorderSide(color: borderColor, width: 1.0),
+                        ),
+                        focusedBorder: UnderlineInputBorder( // Focused state border
+                          borderSide: BorderSide(color: focusedBorderColor, width: 2.0),
+                        ),
+                        labelStyle: GoogleFonts.inter(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8)),
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(vertical: 8.0),
+                        filled: false, // Ensure it's not filled with any color
+                      ),
+                      keyboardType: TextInputType.url,
+                      style: GoogleFonts.inter(color: Theme.of(context).colorScheme.onSurface),
+                    ),
+                    const SizedBox(height: 20),
+                    // TextField for Username
+                    TextField(
+                      controller: _usernameController,
+                      decoration: InputDecoration(
+                        labelText: 'Benutzername',
+                        prefixIcon: Icon(Icons.person, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8)),
+                        enabledBorder: UnderlineInputBorder( // Default state border
+                          borderSide: BorderSide(color: borderColor, width: 1.0),
+                        ),
+                        focusedBorder: UnderlineInputBorder( // Focused state border
+                          borderSide: BorderSide(color: focusedBorderColor, width: 2.0),
+                        ),
+                        labelStyle: GoogleFonts.inter(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8)),
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(vertical: 8.0),
+                        filled: false, // Ensure it's not filled with any color
+                      ),
+                      style: GoogleFonts.inter(color: Theme.of(context).colorScheme.onSurface),
+                    ),
+                    const SizedBox(height: 20),
+                    // TextField for Password
+                    TextField(
+                      controller: _passwordController,
+                      obscureText: true, // Hide password
+                      decoration: InputDecoration(
+                        labelText: 'Passwort',
+                        prefixIcon: Icon(Icons.lock, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8)),
+                        enabledBorder: UnderlineInputBorder( // Default state border
+                          borderSide: BorderSide(color: borderColor, width: 1.0),
+                        ),
+                        focusedBorder: UnderlineInputBorder( // Focused state border
+                          borderSide: BorderSide(color: focusedBorderColor, width: 2.0),
+                        ),
+                        labelStyle: GoogleFonts.inter(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8)),
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(vertical: 8.0),
+                        filled: false, // Ensure it's not filled with any color
+                      ),
+                      style: GoogleFonts.inter(color: Theme.of(context).colorScheme.onSurface),
+                    ),
+                    const SizedBox(height: 30),
+                    _isLoading
+                        ? const CircularProgressIndicator() // Show loading indicator
+                        : ElevatedButton(
+                            onPressed: _login,
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(30.0),
+                              ),
+                              backgroundColor: Theme.of(context).colorScheme.primary, // Button background color
+                              foregroundColor: Theme.of(context).colorScheme.onPrimary, // Button text color
+                            ),
+                            child: Text(
+                              'Anmelden',
+                              style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                    if (_errorMessage != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 20),
+                        child: Text(
+                          _errorMessage!,
+                          style: GoogleFonts.inter(color: Colors.red, fontSize: 16),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                  ],
                 ),
-            ],
-          ),
+              ),
+            ),
+            // Dark/Light Mode Toggler in the bottom left
+            Positioned(
+              bottom: 16.0,
+              left: 16.0,
+              child: IconButton(
+                icon: Icon(
+                  Theme.of(context).brightness == Brightness.dark
+                      ? Icons.light_mode // Sun icon for Dark Mode
+                      : Icons.dark_mode, // Moon icon for Light Mode
+                  color: Theme.of(context).colorScheme.onBackground, // Icon color adapts to theme
+                  size: 30.0,
+                ),
+                onPressed: () {
+                  themeNotifier.toggleTheme(); // Toggle theme
+                },
+              ),
+            ),
+            // Help Icon in the bottom right
+            Positioned(
+              bottom: 16.0,
+              right: 16.0,
+              child: FloatingActionButton(
+                onPressed: () => _showHelpDialog(context),
+                backgroundColor: Theme.of(context).colorScheme.secondary,
+                child: Icon(Icons.help_outline, color: Theme.of(context).colorScheme.onSecondary),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
+

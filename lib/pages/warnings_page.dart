@@ -96,7 +96,7 @@ class _WarningsPageState extends State<WarningsPage> {
   String? _errorMessage;
 
   List<StandForDropdown> _standsForDropdown = [];
-  List<GroupedWarning> _groupedWarnings = [];
+  final List<GroupedWarning> _groupedWarnings = [];
 
   StandForDropdown? _selectedStandForNewWarning;
   final TextEditingController _newWarningCommentController = TextEditingController();
@@ -195,7 +195,7 @@ class _WarningsPageState extends State<WarningsPage> {
                 .toList();
 
             _groupedWarnings.clear();
-            (data['grouped_warnings'] as List).forEach((gwData) {
+            for (var gwData in (data['grouped_warnings'] as List)) {
               final List<Warning> warningsList = (gwData['warnings'] as List)
                   .map((w) => Warning.fromJson(w))
                   .toList();
@@ -205,7 +205,7 @@ class _WarningsPageState extends State<WarningsPage> {
                 totalWarnings: gwData['total_warnings'],
                 warnings: warningsList,
               ));
-            });
+            }
           });
         } else {
           _errorMessage = data['message'] ?? 'Fehler beim Laden der Verwarnungsdaten.';
@@ -798,7 +798,7 @@ class _WarningsPageState extends State<WarningsPage> {
                                                               ],
                                                             ),
                                                           );
-                                                        }).toList(),
+                                                        }),
                                                     ],
                                                   ),
                                                 ),

@@ -250,7 +250,7 @@ class _MorePageState extends State<MorePage> {
                   ),
 
                   // Management Options Section (only visible for Admin)
-                  if (this._isAdmin()) // Zeigt den Verwaltungsbereich nur für Admins an
+                  if (_isAdmin()) // Zeigt den Verwaltungsbereich nur für Admins an
                     // Removed Expanded and SingleChildScrollView here
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,

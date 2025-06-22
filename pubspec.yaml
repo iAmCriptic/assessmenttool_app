@@ -35,6 +35,8 @@ dependencies:
   google_fonts: ^6.2.1 # Should already be there
   provider: ^6.1.5 # Should already be there
   intl: ^0.19.0 # Add this line
+  package_info_plus: ^8.0.0 # Oder die neueste stabile Version
+  url_launcher: ^6.2.0 # Oder die neueste
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.

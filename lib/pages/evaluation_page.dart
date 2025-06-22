@@ -64,10 +64,10 @@ class _EvaluationPageState extends State<EvaluationPage> {
   List<Stand> _stands = [];
   List<Criterion> _criteria = [];
   Stand? _selectedStand;
-  Map<int, TextEditingController> _scoreControllers = {}; // Controllers for score inputs
+  final Map<int, TextEditingController> _scoreControllers = {}; // Controllers for score inputs
   
   // Stores existing evaluation scores for the selected stand
-  Map<int, int> _existingScores = {}; 
+  final Map<int, int> _existingScores = {}; 
   String? _lastEvaluationTimestamp;
 
   // State variables for dynamic gradient colors from the server
@@ -186,10 +186,10 @@ class _EvaluationPageState extends State<EvaluationPage> {
             // Initialize controllers
             _scoreControllers.forEach((id, controller) => controller.removeListener(_updateSubmitButtonState)); // Remove old listeners
             _scoreControllers.clear(); // Clear old controllers if any
-            _criteria.forEach((criterion) {
+            for (var criterion in _criteria) {
               _scoreControllers[criterion.id] = TextEditingController();
               _scoreControllers[criterion.id]?.addListener(_updateSubmitButtonState);
-            });
+            }
             // Reset selected stand and existing scores
             _selectedStand = null;
             _existingScores.clear();
@@ -289,9 +289,9 @@ class _EvaluationPageState extends State<EvaluationPage> {
             }
 
             // Populate controllers with existing scores
-            _criteria.forEach((criterion) {
+            for (var criterion in _criteria) {
               _scoreControllers[criterion.id]?.text = (_existingScores[criterion.id] ?? '').toString();
-            });
+            }
           });
         } else {
           // No existing evaluation found for this stand
@@ -299,9 +299,9 @@ class _EvaluationPageState extends State<EvaluationPage> {
             _existingScores.clear();
             _lastEvaluationTimestamp = null;
             // Clear all controllers when a new stand is selected or no existing evaluation
-            _criteria.forEach((criterion) {
+            for (var criterion in _criteria) {
               _scoreControllers[criterion.id]?.clear();
-            });
+            }
           });
         }
       } else {
@@ -357,7 +357,7 @@ class _EvaluationPageState extends State<EvaluationPage> {
     });
 
     final Map<String, int> scoresToSubmit = {};
-    _criteria.forEach((criterion) {
+    for (var criterion in _criteria) {
       final text = _scoreControllers[criterion.id]?.text;
       if (text != null && text.isNotEmpty) {
         final score = int.tryParse(text);
@@ -367,7 +367,7 @@ class _EvaluationPageState extends State<EvaluationPage> {
           _scoreControllers[criterion.id]?.clear(); 
         }
       }
-    });
+    }
 
     try {
       final headers = _getAuthHeaders();
@@ -624,9 +624,9 @@ class _EvaluationPageState extends State<EvaluationPage> {
                                         _selectedStand = newValue;
                                         _existingScores.clear();
                                         _lastEvaluationTimestamp = null;
-                                        _criteria.forEach((criterion) {
+                                        for (var criterion in _criteria) {
                                           _scoreControllers[criterion.id]?.clear();
-                                        });
+                                        }
 
                                         if (newValue != null) {
                                           _fetchExistingScores(newValue.id); 

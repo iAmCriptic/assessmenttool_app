@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:provider/provider.dart';
-import '../theme_manager.dart'; // Pfad anpassen, falls nötig
+// Pfad anpassen, falls nötig
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart'; // Für Session-Cookie und Benutzerrolle
@@ -211,8 +210,7 @@ class _ManageStandsPageState extends State<ManageStandsPage> {
               (_errorMessage ?? '') + (data['message'] ?? 'Fehler beim Laden der Räume.');
         }
       } else {
-        _errorMessage = (_errorMessage ?? '') +
-            'Fehler ${roomsResponse.statusCode}: ${roomsResponse.reasonPhrase}';
+        _errorMessage = '${_errorMessage ?? ''}Fehler ${roomsResponse.statusCode}: ${roomsResponse.reasonPhrase}';
         print('Fehler beim Abrufen der Räume: ${roomsResponse.statusCode} - ${roomsResponse.body}');
       }
 
@@ -430,11 +428,11 @@ class _ManageStandsPageState extends State<ManageStandsPage> {
                   },
                 ),
                 ElevatedButton(
-                  child: Text('Bestätigen', style: GoogleFonts.inter()),
                   onPressed: () {
                     Navigator.of(context).pop(true);
                   },
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                  child: Text('Bestätigen', style: GoogleFonts.inter()),
                 ),
               ],
             );
@@ -509,7 +507,7 @@ class _ManageStandsPageState extends State<ManageStandsPage> {
                         value: room,
                         child: Text(room.name),
                       );
-                    }).toList(),
+                    }),
                   ],
                   onChanged: (Room? newValue) {
                     setState(() { // Update state in the main page
@@ -804,7 +802,7 @@ class _ManageStandsPageState extends State<ManageStandsPage> {
                                   value: room,
                                   child: Text(room.name),
                                 );
-                              }).toList(),
+                              }),
                             ],
                             onChanged: (Room? newValue) {
                               setState(() {
@@ -863,7 +861,7 @@ class _ManageStandsPageState extends State<ManageStandsPage> {
                         const int maxChars = 50; // Max. Zeichen für die gekürzte Anzeige
 
                         if (displayDescription.length > maxChars) {
-                          displayDescription = displayDescription.substring(0, maxChars) + '...';
+                          displayDescription = '${displayDescription.substring(0, maxChars)}...';
                           needsReadMore = true;
                         }
 

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:provider/provider.dart';
-import '../theme_manager.dart'; // Adjust path if necessary
+// Adjust path if necessary
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart'; // For session cookie and user role
@@ -217,13 +216,13 @@ class _ManageListsPageState extends State<ManageListsPage> {
                   },
                 ),
                 ElevatedButton(
-                  child: Text(isDestructive ? 'Löschen' : 'Bestätigen', style: GoogleFonts.inter()),
                   onPressed: () {
                     Navigator.of(context).pop(true);
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: isDestructive ? Colors.red : Theme.of(context).primaryColor,
                   ),
+                  child: Text(isDestructive ? 'Löschen' : 'Bestätigen', style: GoogleFonts.inter()),
                 ),
               ],
             );

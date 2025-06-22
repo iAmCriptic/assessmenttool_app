@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:provider/provider.dart';
-import '../theme_manager.dart'; // Pfad anpassen, falls nötig
+// Pfad anpassen, falls nötig
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart'; // Für Session-Cookie und Benutzerrolle
@@ -318,11 +317,11 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
                   },
                 ),
                 ElevatedButton(
-                  child: Text('Bestätigen', style: GoogleFonts.inter()),
                   onPressed: () {
                     Navigator.of(context).pop(true);
                   },
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                  child: Text('Bestätigen', style: GoogleFonts.inter()),
                 ),
               ],
             );

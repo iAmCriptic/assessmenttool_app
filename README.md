@@ -9,7 +9,7 @@
 The app for the assessment tool
 <br/>
 <br/>
-<a href="https://github.com/iAmCriptic/assessmenttool_app/"><strong>Explore the docs »</strong></a>
+<a href="https://github.com/iAmCriptic/assessmenttool/"><strong>View the Assessmenttool »</strong></a>
 <br/>
 <br/>
   
